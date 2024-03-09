@@ -47,7 +47,6 @@ void trap(struct trapframe *tf)
   switch (tf->trapno)
   {
   case T_PGFLT:
-  case T_PGFLT:
   {
     uint faulting_address = rcr2();
     struct proc *curproc = myproc();
