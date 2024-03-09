@@ -418,14 +418,47 @@ int copyout(pde_t *pgdir, uint va, void *p, uint len)
   return 0;
 }
 
-// Memory mapping system call
+// Check if the region [addr, addr+length) overlaps with any existing memory mappings
+int region_overlaps(struct proc *curproc, uint addr, int length)
+{
+  struct wmap_region *wmap_region;
+  int i;
+  for (i = 0; i < 16; i++)
+  {
+    wmap_region = curproc->wmap_regions[i];
+    if (wmap_region != 0 &&
+        ((addr >= wmap_region->addr && addr < wmap_region->addr + wmap_region->length) ||
+         (addr + length > wmap_region->addr && addr + length <= wmap_region->addr + wmap_region->length)))
+    {
+      return 1; // The region overlaps
+    }
+  }
+  return 0; // The region does not overlap
+}
+
+// Memory map system call
 uint wmap(uint addr, int length, int flags, int fd)
 {
   struct proc *curproc = myproc();
 
-  // If MAP_FIXED is set, check if the specified address is valid
-  if (flags & MAP_FIXED)
+  // If MAP_FIXED is not set, find an available region in the virtual address space
+  if (!(flags & MAP_FIXED))
   {
+    for (addr = 0x60000000; addr < 0x80000000; addr += PGSIZE)
+    {
+      if (!region_overlaps(curproc, addr, length))
+      {
+        break;
+      }
+    }
+    if (addr >= 0x80000000)
+    {
+      return -1; // No available region found
+    }
+  }
+  else
+  {
+    // If MAP_FIXED is set, check if the specified address is valid
     if (addr % PGSIZE != 0 || addr < 0x60000000 || addr >= 0x80000000)
     {
       return -1; // Invalid address
@@ -470,6 +503,45 @@ uint wmap(uint addr, int length, int flags, int fd)
     }
   }
   return -1;
+}
+
+
+// Memory unmap system call
+int wunmap(uint addr)
+{
+  struct proc *curproc = myproc();
+
+  // Check if the address is page aligned
+  if (addr % PGSIZE != 0) {
+    return -1; // Invalid address
+  }
+
+  struct wmap_region *wmap_region;
+  int i;
+  for (i = 0; i < 16; i++) {
+    wmap_region = curproc->wmap_regions[i];
+    if (wmap_region != 0 && wmap_region->addr == addr) {
+      // If it's a file-backed mapping with MAP_SHARED, write the memory data back to the file
+      if (!(wmap_region->flags & MAP_ANONYMOUS) && (wmap_region->flags & MAP_SHARED)) {
+        struct file *f = curproc->ofile[wmap_region->fd];
+        if (f == 0) {
+          return -1;
+        }
+        begin_op();
+        ilock(f->ip);
+        writei(f->ip, 1, (char*)wmap_region->addr, wmap_region->addr, wmap_region->length);
+        iunlock(f->ip);
+        end_op();
+      }
+
+      // Remove the mapping
+      kfree((char*)wmap_region);
+      curproc->wmap_regions[i] = 0;
+      return 0;
+    }
+  }
+
+  return -1; // No mapping found
 }
 
 // PAGEBREAK!
