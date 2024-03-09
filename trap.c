@@ -7,6 +7,7 @@
 #include "x86.h"
 #include "traps.h"
 #include "spinlock.h"
+#include "wmap.h"
 
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
@@ -67,6 +68,16 @@ void trap(struct trapframe *tf)
           return;
         }
         memset(mem, 0, PGSIZE);
+
+        // If the mapping is file-backed, read the data from the file
+        if (!(wmap_region->flags & MAP_ANONYMOUS))
+        {
+          struct file *f = curproc->ofile[wmap_region->fd];
+          int offset = (faulting_address - wmap_region->addr);
+          fileseek(f, offset);
+          fileread(f, mem, PGSIZE);
+        }
+
         if (mappages(curproc->pgdir, (char *)PGROUNDDOWN(faulting_address), PGSIZE, V2P(mem), PTE_W | PTE_U) < 0)
         {
           cprintf("out of memory (2)\n");
