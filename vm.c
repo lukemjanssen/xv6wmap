@@ -402,9 +402,10 @@ int copyout(pde_t *pgdir, uint va, void *p, uint len)
   return 0;
 }
 
-uint wmap()
+ 
+// Memory mapping system call
+uint wmap(uint addr, int length, int flags, int fd)
 {
-  int addr, len, flags, fd;
   struct proc *curproc = myproc();
 
   if (argint(0, &addr) < 0 || argint(1, &len) < 0 || argint(2, &flags) < 0 || argint(3, &fd) < 0)
