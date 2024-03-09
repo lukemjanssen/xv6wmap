@@ -25,7 +25,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 uint wmap(uint addr, int length, int flags, int fd);
-int wunmap(uint addr, int length);
+int wunmap(uint addr);
 int getwmapinfo(struct wmapinfo *wmi);
 
 
