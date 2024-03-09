@@ -434,7 +434,8 @@ int region_overlaps(struct proc *curproc, uint addr, int length)
     wmap_region = curproc->wmap_regions[i];
     if (wmap_region != 0 &&
         ((addr >= wmap_region->addr && addr < wmap_region->addr + wmap_region->length) ||
-         (addr + length > wmap_region->addr && addr + length <= wmap_region->addr + wmap_region->length)))
+         (addr + length > wmap_region->addr && addr + length <= wmap_region->addr + wmap_region->length) ||
+         (addr <= wmap_region->addr && addr + length >= wmap_region->addr + wmap_region->length)))
     {
       return 1; // The region overlaps
     }
@@ -465,7 +466,7 @@ uint wmap(uint addr, int length, int flags, int fd)
   else
   {
     // If MAP_FIXED is set, check if the specified address is valid
-    if (addr % PGSIZE != 0 || addr < 0x60000000 || addr >= 0x80000000)
+    if (addr % PGSIZE != 0 || addr < 0x60000000 || addr >= 0x80000000 || region_overlaps(curproc, addr, length))
     {
       return -1; // Invalid address
     }
