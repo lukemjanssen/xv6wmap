@@ -8,6 +8,11 @@
 #include "traps.h"
 #include "spinlock.h"
 #include "wmap.h"
+#include "fs.h"
+#include "sleeplock.h" 
+#include "file.h"
+#include "stat.h"
+#include "fcntl.h"
 
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
@@ -72,10 +77,9 @@ void trap(struct trapframe *tf)
         // If the mapping is file-backed, read the data from the file
         if (!(wmap_region->flags & MAP_ANONYMOUS))
         {
-          struct file *f = curproc->ofile[wmap_region->fd];
-          int offset = (faulting_address - wmap_region->addr);
-          fileseek(f, offset);
-          fileread(f, mem, PGSIZE);
+          ilock(curproc->ofile[wmap_region->fd]->ip);
+          readi(curproc->ofile[wmap_region->fd]->ip, mem, faulting_address - wmap_region->addr, PGSIZE);
+          iunlock(curproc->ofile[wmap_region->fd]->ip);
         }
 
         if (mappages(curproc->pgdir, (char *)PGROUNDDOWN(faulting_address), PGSIZE, V2P(mem), PTE_W | PTE_U) < 0)

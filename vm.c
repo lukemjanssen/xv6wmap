@@ -334,25 +334,41 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: page not present");
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
+
+    // If the page is part of a memory mapping, copy it lazily
+    struct proc *curproc = myproc();
+    struct wmap_region *wmap_region;
+    int j;
+    for (j = 0; j < 16; j++)
+    {
+      wmap_region = curproc->wmap_regions[j];
+      if (wmap_region != 0 &&
+          i >= wmap_region->addr &&
+          i < wmap_region->addr + wmap_region->length)
+      {
+        if (wmap_region->flags & MAP_SHARED)
+        {
+          if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
+            goto bad;
+          break;
+        }
+        else if (wmap_region->flags & MAP_PRIVATE)
+        {
+          if ((mem = kalloc()) == 0)
+            goto bad;
+          memmove(mem, (char *)P2V(pa), PGSIZE);
+          if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
+            goto bad;
+          break;
+        }
+      }
+    }
+
     if ((mem = kalloc()) == 0)
       goto bad;
     memmove(mem, (char *)P2V(pa), PGSIZE);
     if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
-    {
-      kfree(mem);
       goto bad;
-    }
-
-    // If the page is part of a MAP_PRIVATE mapping, create a new copy of the page for the child process
-    if (proc->mapflags[i / PGSIZE] & MAP_PRIVATE)
-    {
-      mem = kalloc();
-      if (mem == 0)
-        goto bad;
-      memmove(mem, (char *)P2V(pa), PGSIZE);
-      if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
-        goto bad;
-    }
   }
   return d;
 
@@ -402,14 +418,10 @@ int copyout(pde_t *pgdir, uint va, void *p, uint len)
   return 0;
 }
 
- 
 // Memory mapping system call
 uint wmap(uint addr, int length, int flags, int fd)
 {
   struct proc *curproc = myproc();
-
-  if (argint(0, &addr) < 0 || argint(1, &len) < 0 || argint(2, &flags) < 0 || argint(3, &fd) < 0)
-    return -1;
 
   // If MAP_FIXED is set, check if the specified address is valid
   if (flags & MAP_FIXED)
@@ -432,7 +444,7 @@ uint wmap(uint addr, int length, int flags, int fd)
         return -1;
       }
       wmap_region->addr = addr;
-      wmap_region->length = len;
+      wmap_region->length = length;
       wmap_region->flags = flags;
       wmap_region->fd = fd;
 
@@ -449,17 +461,8 @@ uint wmap(uint addr, int length, int flags, int fd)
         {
           return -1;
         }
-        if (flags & MAP_SHARED)
+        if (flags & MAP_SHARED || flags & MAP_PRIVATE)
         {
-          wmap_region->file = f;
-          wmap_region->offset = 0;
-          curproc->wmap_regions[i] = wmap_region;
-          return 0;
-        }
-        else if (flags & MAP_PRIVATE)
-        {
-          wmap_region->file = f;
-          wmap_region->offset = 0;
           curproc->wmap_regions[i] = wmap_region;
           return 0;
         }
