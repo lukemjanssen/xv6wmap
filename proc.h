@@ -32,6 +32,7 @@ struct context {
   uint eip;
 };
 
+// wmap region
 struct wmap_region {
     uint addr;
     int length;

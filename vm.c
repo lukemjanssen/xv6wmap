@@ -6,7 +6,13 @@
 #include "mmu.h"
 #include "proc.h"
 #include "elf.h"
+#include "spinlock.h"
 #include "wmap.h"
+#include "fs.h"
+#include "sleeplock.h" 
+#include "file.h"
+#include "stat.h"
+#include "fcntl.h"
 
 extern char data[]; // defined by kernel.ld
 pde_t *kpgdir;      // for use in scheduler()
@@ -505,37 +511,41 @@ uint wmap(uint addr, int length, int flags, int fd)
   return -1;
 }
 
-
 // Memory unmap system call
 int wunmap(uint addr)
 {
   struct proc *curproc = myproc();
 
   // Check if the address is page aligned
-  if (addr % PGSIZE != 0) {
+  if (addr % PGSIZE != 0)
+  {
     return -1; // Invalid address
   }
 
   struct wmap_region *wmap_region;
   int i;
-  for (i = 0; i < 16; i++) {
+  for (i = 0; i < 16; i++)
+  {
     wmap_region = curproc->wmap_regions[i];
-    if (wmap_region != 0 && wmap_region->addr == addr) {
+    if (wmap_region != 0 && wmap_region->addr == addr)
+    {
       // If it's a file-backed mapping with MAP_SHARED, write the memory data back to the file
-      if (!(wmap_region->flags & MAP_ANONYMOUS) && (wmap_region->flags & MAP_SHARED)) {
+      if (!(wmap_region->flags & MAP_ANONYMOUS) && (wmap_region->flags & MAP_SHARED))
+      {
         struct file *f = curproc->ofile[wmap_region->fd];
-        if (f == 0) {
+        if (f == 0)
+        {
           return -1;
         }
         begin_op();
         ilock(f->ip);
-        writei(f->ip, 1, (char*)wmap_region->addr, wmap_region->addr, wmap_region->length);
+        writei(f->ip, (char *)wmap_region->addr, 0, wmap_region->length); // fix this line
         iunlock(f->ip);
         end_op();
       }
 
       // Remove the mapping
-      kfree((char*)wmap_region);
+      kfree((char *)wmap_region);
       curproc->wmap_regions[i] = 0;
       return 0;
     }
