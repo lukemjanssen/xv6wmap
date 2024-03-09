@@ -444,6 +444,7 @@ sys_pipe(void)
   return 0;
 }
 
+// memory map system call
 uint sys_wmap(void)
 {
   uint addr;
@@ -454,5 +455,17 @@ uint sys_wmap(void)
     return -1;
 
   return wmap(addr, length, flags, fd);
+}
+
+// memory unmap system call
+int sys_wunmap(void)
+{
+  uint addr;
+  int length;
+
+  if(argint(0, (int*)&addr) < 0 || argint(1, &length) < 0)
+    return -1;
+
+  return wunmap(addr, length);
 }
 
