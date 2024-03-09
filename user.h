@@ -1,5 +1,6 @@
 struct stat;
 struct rtcdate;
+struct wmapinfo;
 
 // system calls
 int fork(void);
@@ -24,6 +25,8 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 uint wmap(uint addr, int length, int flags, int fd);
+int wunmap(uint addr, int length);
+int getwmapinfo(struct wmapinfo *wmi);
 
 
 // ulib.c

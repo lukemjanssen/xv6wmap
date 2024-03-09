@@ -59,15 +59,15 @@ objdump -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > kernel.sym
 dd if=/dev/zero of=xv6.img count=10000
 10000+0 records in
 10000+0 records out
-5120000 bytes (5.1 MB, 4.9 MiB) copied, 0.00993813 s, 515 MB/s
+5120000 bytes (5.1 MB, 4.9 MiB) copied, 0.00974344 s, 525 MB/s
 dd if=bootblock of=xv6.img conv=notrunc
 1+0 records in
 1+0 records out
-512 bytes copied, 0.000101968 s, 5.0 MB/s
+512 bytes copied, 4.166e-05 s, 12.3 MB/s
 dd if=kernel of=xv6.img seek=1 conv=notrunc
-413+1 records in
-413+1 records out
-211844 bytes (212 kB, 207 KiB) copied, 0.00028862 s, 734 MB/s
+416+1 records in
+416+1 records out
+213212 bytes (213 kB, 208 KiB) copied, 0.000328315 s, 649 MB/s
 gcc -Werror -Wall -o mkfs mkfs.c
 gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o ulib.o ulib.c
 gcc -m32 -gdwarf-2 -Wa,-divide   -c -o usys.o usys.S
@@ -136,7 +136,7 @@ objdump -S _zombie > zombie.asm
 objdump -t _zombie | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > zombie.sym
 ./mkfs fs.img README _cat _echo _forktest _grep _init _kill _ln _ls _mkdir _rm _sh _stressfs _usertests _wc _zombie 
 nmeta 59 (boot, super, log blocks 30 inode blocks 26, bitmap blocks 1) blocks 941 total 1000
-balloc: first 639 blocks have been allocated
+balloc: first 644 blocks have been allocated
 balloc: write bitmap block at sector 58
 
 
@@ -152,19 +152,288 @@ Places one anonymous map at a fixed address.
 
 **********************************************************************
 Running xv6 user progam /home/cs537-1/tests/P4/2_wmap_tests/test_4.c
-DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpt_8u16ei/p/Makefile', '/tmp/tmpt_8u16ei/p/Makefile.test']
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpw9mdrcsp/p/Makefile', '/tmp/tmpw9mdrcsp/p/Makefile.test']
 Trying to build project using make
 make xv6.img fs.img
-/tmp/tmpt_8u16ei/p/Makefile
-/tmp/tmpt_8u16ei/p/Makefile.test
+/tmp/tmpw9mdrcsp/p/Makefile
+/tmp/tmpw9mdrcsp/p/Makefile.test
 make: 'xv6.img' is up to date.
 make: 'fs.img' is up to date.
 make qemu-nox CPUS=1
 gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
-[01m[Ktester.c:[m[K In function ‘[01m[Kget_n_validate_wmap_info[m[K’:
-[01m[Ktester.c:39:15:[m[K [01;31m[Kerror: [m[Kimplicit declaration of function ‘[01m[Kgetwmapinfo[m[K’ [[01;31m[K]8;;https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#index-Wimplicit-function-declaration-Werror=implicit-function-declaration]8;;[m[K]
-   39 |     int ret = [01;31m[Kgetwmapinfo[m[K(info);
-      |               [01;31m[K^~~~~~~~~~~[m[K
+ld -m    elf_i386 -N -e main -Ttext 0 -o _tester tester.o ulib.o usys.o printf.o umalloc.o
+objdump -S _tester > tester.asm
+objdump -t _tester | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > tester.sym
+./mkfs fs.img README _cat _echo _forktest _grep _init _kill _ln _ls _tester _mkdir _rm _sh _stressfs _usertests _wc _zombie 
+nmeta 59 (boot, super, log blocks 30 inode blocks 26, bitmap blocks 1) blocks 941 total 1000
+balloc: first 679 blocks have been allocated
+balloc: write bitmap block at sector 58
+qemu-system-i386 -nographic -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 1 -m 512 
+c[?7l[2J[0mSeaBIOS (version 1.15.0-1)
+
+
+iPXE (https://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+1FF8B4A0+1FECB4A0 CA00
+Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
+
+
+Booting from Hard Disk..xv6...
+cpu0: starting 0
+sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
+init: starting sh
+$ tester
+tester
+
+
+TEST_4
+Initially 0 maps. 	Okay.
+Map 1 at 0x60021000 with length 4104. 	Okay.
+
+WMMAP	 SUCCESS
+
+
+test test_4 PASSED (1 of 1)
+ (Places one anonymous map at a fixed address.)
+
+starting test_5
+
+**********************************************************************
+
+Test test_5
+Places one anonymous map at a NOT-fixed address.
+
+**********************************************************************
+Running xv6 user progam /home/cs537-1/tests/P4/2_wmap_tests/test_5.c
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpw9mdrcsp/p/Makefile', '/tmp/tmpw9mdrcsp/p/Makefile.test']
+Trying to build project using make
+make xv6.img fs.img
+/tmp/tmpw9mdrcsp/p/Makefile
+/tmp/tmpw9mdrcsp/p/Makefile.test
+make: 'xv6.img' is up to date.
+make: 'fs.img' is up to date.
+make qemu-nox CPUS=1
+gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
+ld -m    elf_i386 -N -e main -Ttext 0 -o _tester tester.o ulib.o usys.o printf.o umalloc.o
+objdump -S _tester > tester.asm
+objdump -t _tester | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > tester.sym
+./mkfs fs.img README _cat _echo _forktest _grep _init _kill _ln _ls _tester _mkdir _rm _sh _stressfs _usertests _wc _zombie 
+nmeta 59 (boot, super, log blocks 30 inode blocks 26, bitmap blocks 1) blocks 941 total 1000
+balloc: first 679 blocks have been allocated
+balloc: write bitmap block at sector 58
+qemu-system-i386 -nographic -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 1 -m 512 
+c[?7l[2J[0mSeaBIOS (version 1.15.0-1)
+
+
+iPXE (https://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+1FF8B4A0+1FECB4A0 CA00
+Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
+
+
+Booting from Hard Disk..xv6...
+cpu0: starting 0
+sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
+init: starting sh
+$ tester
+tester
+
+
+TEST_5
+Initially 0 maps. 	Okay.
+Map 1 at 0x60000000 with length 4104. 	Okay.
+
+WMMAP	 SUCCESS
+
+test test_5 PASSED (1 of 1)
+ (Places one anonymous map at a NOT-fixed address.)
+
+starting test_6
+
+**********************************************************************
+
+Test test_6
+Places one filebacked map at a fixed address.
+
+**********************************************************************
+Running xv6 user progam /home/cs537-1/tests/P4/2_wmap_tests/test_6.c
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpw9mdrcsp/p/Makefile', '/tmp/tmpw9mdrcsp/p/Makefile.test']
+Trying to build project using make
+make xv6.img fs.img
+/tmp/tmpw9mdrcsp/p/Makefile
+/tmp/tmpw9mdrcsp/p/Makefile.test
+make: 'xv6.img' is up to date.
+make: 'fs.img' is up to date.
+make qemu-nox CPUS=1
+gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
+ld -m    elf_i386 -N -e main -Ttext 0 -o _tester tester.o ulib.o usys.o printf.o umalloc.o
+objdump -S _tester > tester.asm
+objdump -t _tester | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > tester.sym
+./mkfs fs.img README _cat _echo _forktest _grep _init _kill _ln _ls _tester _mkdir _rm _sh _stressfs _usertests _wc _zombie 
+nmeta 59 (boot, super, log blocks 30 inode blocks 26, bitmap blocks 1) blocks 941 total 1000
+balloc: first 682 blocks have been allocated
+balloc: write bitmap block at sector 58
+qemu-system-i386 -nographic -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 1 -m 512 
+c[?7l[2J[0mSeaBIOS (version 1.15.0-1)
+
+
+iPXE (https://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+1FF8B4A0+1FECB4A0 CA00
+Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
+
+
+Booting from Hard Disk..xv6...
+cpu0: starting 0
+sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
+init: starting sh
+$ tester
+tester
+
+
+TEST_6
+Initially 0 maps. 	Okay.
+Map 1 at 0x60021000 with length 513. 	Okay.
+
+WMMAP	 SUCCESS
+
+
+test test_6 PASSED (1 of 1)
+ (Places one filebacked map at a fixed address.)
+
+starting test_7
+
+**********************************************************************
+
+Test test_7
+Places multiple maps at different addresses.
+
+**********************************************************************
+Running xv6 user progam /home/cs537-1/tests/P4/2_wmap_tests/test_7.c
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpw9mdrcsp/p/Makefile', '/tmp/tmpw9mdrcsp/p/Makefile.test']
+Trying to build project using make
+make xv6.img fs.img
+/tmp/tmpw9mdrcsp/p/Makefile
+/tmp/tmpw9mdrcsp/p/Makefile.test
+make: 'xv6.img' is up to date.
+make: 'fs.img' is up to date.
+make qemu-nox CPUS=1
+gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
+ld -m    elf_i386 -N -e main -Ttext 0 -o _tester tester.o ulib.o usys.o printf.o umalloc.o
+objdump -S _tester > tester.asm
+objdump -t _tester | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > tester.sym
+./mkfs fs.img README _cat _echo _forktest _grep _init _kill _ln _ls _tester _mkdir _rm _sh _stressfs _usertests _wc _zombie 
+nmeta 59 (boot, super, log blocks 30 inode blocks 26, bitmap blocks 1) blocks 941 total 1000
+balloc: first 686 blocks have been allocated
+balloc: write bitmap block at sector 58
+qemu-system-i386 -nographic -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 1 -m 512 
+c[?7l[2J[0mSeaBIOS (version 1.15.0-1)
+
+
+iPXE (https://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+1FF8B4A0+1FECB4A0 CA00
+Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
+
+
+Booting from Hard Disk..xv6...
+cpu0: starting 0
+sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
+init: starting sh
+$ tester
+tester
+
+
+TEST_7
+Initially 0 maps. 	Okay.
+Map 1 at 0x60021000 with length 513. 	Okay.
+Map 2 at 0x60022000 with length 8200. 	Okay.
+Cause: `wmap()` did not fail
+
+WMMAP	 FAILED
+
+
+test test_7 FAILED (0 of 1)
+ (Places multiple maps at different addresses.)
+ tester failed
+
+starting test_8
+
+**********************************************************************
+
+Test test_8
+Places a large number of anonymous maps at fixed and non-fixed addresses
+
+**********************************************************************
+Running xv6 user progam /home/cs537-1/tests/P4/2_wmap_tests/test_8.c
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpw9mdrcsp/p/Makefile', '/tmp/tmpw9mdrcsp/p/Makefile.test']
+Trying to build project using make
+make xv6.img fs.img
+/tmp/tmpw9mdrcsp/p/Makefile
+/tmp/tmpw9mdrcsp/p/Makefile.test
+make: 'xv6.img' is up to date.
+make: 'fs.img' is up to date.
+make qemu-nox CPUS=1
+gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
+ld -m    elf_i386 -N -e main -Ttext 0 -o _tester tester.o ulib.o usys.o printf.o umalloc.o
+objdump -S _tester > tester.asm
+objdump -t _tester | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > tester.sym
+./mkfs fs.img README _cat _echo _forktest _grep _init _kill _ln _ls _tester _mkdir _rm _sh _stressfs _usertests _wc _zombie 
+nmeta 59 (boot, super, log blocks 30 inode blocks 26, bitmap blocks 1) blocks 941 total 1000
+balloc: first 682 blocks have been allocated
+balloc: write bitmap block at sector 58
+qemu-system-i386 -nographic -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 1 -m 512 
+c[?7l[2J[0mSeaBIOS (version 1.15.0-1)
+
+
+iPXE (https://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+1FF8B4A0+1FECB4A0 CA00
+Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
+
+
+Booting from Hard Disk..xv6...
+cpu0: starting 0
+sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
+init: starting sh
+$ tester
+tester
+
+
+TEST_8
+Maximum #allocatable pages: 131072
+Initially 0 maps. 	Okay.
+Map 1 is placed at 0x60021000. 	Okay.
+Map 2 is placed at 0x60000000. 	Okay.
+Map 3 is placed at 0x607D2000. 	Okay.
+Map 4 is placed at 0x61774000. 	Okay.
+Map 5 is placed at 0x62EE6000. 	Okay.
+Map 6 is placed at 0x64E28000. 	Okay.
+Map 7 is placed at 0x6753A000. 	Okay.
+Map 8 is placed at 0x6A41C000. 	Okay.
+Map 9 is placed at 0x6A41E000. 	Okay.
+Map 10 is placed at 0x6A420000. 	Okay.
+Cause: Map 1 overlaps with Map 2
+
+WMMAP	 FAILED
+
+
+test test_8 FAILED (0 of 1)
+ (Places a large number of anonymous maps at fixed and non-fixed addresses)
+ tester failed
+
+starting test_9
+
+**********************************************************************
+
+Test test_9
+access anonymous map (checks for memory allocation)
+
+**********************************************************************
+Running xv6 user progam /home/cs537-1/tests/P4/2_wmap_tests/test_9.c
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpw9mdrcsp/p/Makefile', '/tmp/tmpw9mdrcsp/p/Makefile.test']
+Trying to build project using make
+make xv6.img fs.img
+/tmp/tmpw9mdrcsp/p/Makefile
+/tmp/tmpw9mdrcsp/p/Makefile.test
+make: 'xv6.img' is up to date.
+make: 'fs.img' is up to date.
+make qemu-nox CPUS=1
+gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
+[01m[Ktester.c:[m[K In function ‘[01m[Kmain[m[K’:
+[01m[Ktester.c:137:5:[m[K [01;31m[Kerror: [m[Kimplicit declaration of function ‘[01m[Kgetpgdirinfo[m[K’ [[01;31m[K]8;;https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#index-Wimplicit-function-declaration-Werror=implicit-function-declaration]8;;[m[K]
+  137 |     [01;31m[Kgetpgdirinfo[m[K(&pinfo);
+      |     [01;31m[K^~~~~~~~~~~~[m[K
 cc1: all warnings being treated as errors
 make: *** [<builtin>: tester.o] Error 1
 Traceback (most recent call last):
@@ -186,9 +455,256 @@ During handling of the above exception, another exception occurred:
 NameError: name 'e' is not defined
 
 
-test test_4 FAILED (0 of 1)
- (Places one anonymous map at a fixed address.)
+test test_9 FAILED (0 of 1)
+ (access anonymous map (checks for memory allocation))
  Unexpected exception name 'e' is not defined
 
-Skipped 9 tests.
-To keep testing after failing a test, use flag '-c' or '--continue'
+starting test_10
+
+**********************************************************************
+
+Test test_10
+access one big filebacked map (checks for memory allocation)
+
+**********************************************************************
+Running xv6 user progam /home/cs537-1/tests/P4/2_wmap_tests/test_10.c
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpw9mdrcsp/p/Makefile', '/tmp/tmpw9mdrcsp/p/Makefile.test']
+Trying to build project using make
+make xv6.img fs.img
+/tmp/tmpw9mdrcsp/p/Makefile
+/tmp/tmpw9mdrcsp/p/Makefile.test
+make: 'xv6.img' is up to date.
+make: 'fs.img' is up to date.
+make qemu-nox CPUS=1
+gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
+[01m[Ktester.c:[m[K In function ‘[01m[Kmain[m[K’:
+[01m[Ktester.c:186:5:[m[K [01;31m[Kerror: [m[Kimplicit declaration of function ‘[01m[Kgetpgdirinfo[m[K’ [[01;31m[K]8;;https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#index-Wimplicit-function-declaration-Werror=implicit-function-declaration]8;;[m[K]
+  186 |     [01;31m[Kgetpgdirinfo[m[K(&pinfo);
+      |     [01;31m[K^~~~~~~~~~~~[m[K
+cc1: all warnings being treated as errors
+make: *** [<builtin>: tester.o] Error 1
+Traceback (most recent call last):
+  File "/home/cs537-1/tests/P4/testing/pexpect.py", line 828, in read_nonblocking
+    s = os.read(self.child_fd, size)
+OSError: [Errno 5] Input/output error
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/cs537-1/tests/P4/testing/pexpect.py", line 1377, in expect_loop
+    c = self.read_nonblocking (self.maxread, timeout)
+  File "/home/cs537-1/tests/P4/testing/pexpect.py", line 829, in read_nonblocking
+    except OSError(e): # Linux does this
+TypeError: catching classes that do not inherit from BaseException is not allowed
+
+During handling of the above exception, another exception occurred:
+
+NameError: name 'e' is not defined
+
+
+test test_10 FAILED (0 of 1)
+ (access one big filebacked map (checks for memory allocation))
+ Unexpected exception name 'e' is not defined
+
+starting test_11
+
+**********************************************************************
+
+Test test_11
+Places a large number of anonymous maps at fixed and non-fixed addresses and then accesses all pages of each map.
+
+**********************************************************************
+Running xv6 user progam /home/cs537-1/tests/P4/2_wmap_tests/test_11.c
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpw9mdrcsp/p/Makefile', '/tmp/tmpw9mdrcsp/p/Makefile.test']
+Trying to build project using make
+make xv6.img fs.img
+/tmp/tmpw9mdrcsp/p/Makefile
+/tmp/tmpw9mdrcsp/p/Makefile.test
+make: 'xv6.img' is up to date.
+make: 'fs.img' is up to date.
+make qemu-nox CPUS=1
+gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
+ld -m    elf_i386 -N -e main -Ttext 0 -o _tester tester.o ulib.o usys.o printf.o umalloc.o
+objdump -S _tester > tester.asm
+objdump -t _tester | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > tester.sym
+./mkfs fs.img README _cat _echo _forktest _grep _init _kill _ln _ls _tester _mkdir _rm _sh _stressfs _usertests _wc _zombie 
+nmeta 59 (boot, super, log blocks 30 inode blocks 26, bitmap blocks 1) blocks 941 total 1000
+balloc: first 685 blocks have been allocated
+balloc: write bitmap block at sector 58
+qemu-system-i386 -nographic -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 1 -m 512 
+c[?7l[2J[0mSeaBIOS (version 1.15.0-1)
+
+
+iPXE (https://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+1FF8B4A0+1FECB4A0 CA00
+Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
+
+
+Booting from Hard Disk..xv6...
+cpu0: starting 0
+sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
+init: starting sh
+$ tester
+tester
+
+
+TEST_11
+Maximum #allocatable pages: 131072
+Initially 0 maps. 	Okay.
+Map 1 is placed at 0x60021000. 	Okay.
+Map 2 is placed at 0x60000000. 	Okay.
+Map 3 is placed at 0x607D2000. 	Okay.
+Map 4 is placed at 0x61774000. 	Okay.
+Map 5 is placed at 0x62EE6000. 	Okay.
+Map 6 is placed at 0x64E28000. 	Okay.
+Map 7 is placed at 0x6753A000. 	Okay.
+Map 8 is placed at 0x6A41C000. 	Okay.
+Map 9 is placed at 0x6A41E000. 	Okay.
+Map 10 is placed at 0x6A420000. 	Okay.
+Cause: Map 1 overlaps with Map 2
+
+WMMAP	 FAILED
+
+
+test test_11 FAILED (0 of 1)
+ (Places a large number of anonymous maps at fixed and non-fixed addresses and then accesses all pages of each map.)
+ tester failed
+
+starting test_12
+
+**********************************************************************
+
+Test test_12
+Checks for lazy allocation in fixed anon mapping
+
+**********************************************************************
+Running xv6 user progam /home/cs537-1/tests/P4/2_wmap_tests/test_12.c
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpw9mdrcsp/p/Makefile', '/tmp/tmpw9mdrcsp/p/Makefile.test']
+Trying to build project using make
+make xv6.img fs.img
+/tmp/tmpw9mdrcsp/p/Makefile
+/tmp/tmpw9mdrcsp/p/Makefile.test
+make: 'xv6.img' is up to date.
+make: 'fs.img' is up to date.
+make qemu-nox CPUS=1
+gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
+[01m[Ktester.c:[m[K In function ‘[01m[Kget_n_validate_pgdirinfo[m[K’:
+[01m[Ktester.c:51:15:[m[K [01;31m[Kerror: [m[Kimplicit declaration of function ‘[01m[Kgetpgdirinfo[m[K’ [[01;31m[K]8;;https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#index-Wimplicit-function-declaration-Werror=implicit-function-declaration]8;;[m[K]
+   51 |     int ret = [01;31m[Kgetpgdirinfo[m[K(info);
+      |               [01;31m[K^~~~~~~~~~~~[m[K
+cc1: all warnings being treated as errors
+make: *** [<builtin>: tester.o] Error 1
+Traceback (most recent call last):
+  File "/home/cs537-1/tests/P4/testing/pexpect.py", line 828, in read_nonblocking
+    s = os.read(self.child_fd, size)
+OSError: [Errno 5] Input/output error
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/cs537-1/tests/P4/testing/pexpect.py", line 1377, in expect_loop
+    c = self.read_nonblocking (self.maxread, timeout)
+  File "/home/cs537-1/tests/P4/testing/pexpect.py", line 829, in read_nonblocking
+    except OSError(e): # Linux does this
+TypeError: catching classes that do not inherit from BaseException is not allowed
+
+During handling of the above exception, another exception occurred:
+
+NameError: name 'e' is not defined
+
+
+test test_12 FAILED (0 of 1)
+ (Checks for lazy allocation in fixed anon mapping)
+ Unexpected exception name 'e' is not defined
+
+starting test_13
+
+**********************************************************************
+
+Test test_13
+Checks for lazy allocation in fixed filebacked mapping
+
+**********************************************************************
+Running xv6 user progam /home/cs537-1/tests/P4/2_wmap_tests/test_13.c
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpw9mdrcsp/p/Makefile', '/tmp/tmpw9mdrcsp/p/Makefile.test']
+Trying to build project using make
+make xv6.img fs.img
+/tmp/tmpw9mdrcsp/p/Makefile
+/tmp/tmpw9mdrcsp/p/Makefile.test
+make: 'xv6.img' is up to date.
+make: 'fs.img' is up to date.
+make qemu-nox CPUS=1
+gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
+[01m[Ktester.c:[m[K In function ‘[01m[Kget_n_validate_pgdirinfo[m[K’:
+[01m[Ktester.c:51:15:[m[K [01;31m[Kerror: [m[Kimplicit declaration of function ‘[01m[Kgetpgdirinfo[m[K’ [[01;31m[K]8;;https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#index-Wimplicit-function-declaration-Werror=implicit-function-declaration]8;;[m[K]
+   51 |     int ret = [01;31m[Kgetpgdirinfo[m[K(info);
+      |               [01;31m[K^~~~~~~~~~~~[m[K
+cc1: all warnings being treated as errors
+make: *** [<builtin>: tester.o] Error 1
+Traceback (most recent call last):
+  File "/home/cs537-1/tests/P4/testing/pexpect.py", line 828, in read_nonblocking
+    s = os.read(self.child_fd, size)
+OSError: [Errno 5] Input/output error
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/cs537-1/tests/P4/testing/pexpect.py", line 1377, in expect_loop
+    c = self.read_nonblocking (self.maxread, timeout)
+  File "/home/cs537-1/tests/P4/testing/pexpect.py", line 829, in read_nonblocking
+    except OSError(e): # Linux does this
+TypeError: catching classes that do not inherit from BaseException is not allowed
+
+During handling of the above exception, another exception occurred:
+
+NameError: name 'e' is not defined
+
+
+test test_13 FAILED (0 of 1)
+ (Checks for lazy allocation in fixed filebacked mapping)
+ Unexpected exception name 'e' is not defined
+
+**********************************************************************
+Summary:
+test build PASSED
+ (build xv6 using make)
+
+test test_4 PASSED (1 of 1)
+ (Places one anonymous map at a fixed address.)
+
+test test_5 PASSED (1 of 1)
+ (Places one anonymous map at a NOT-fixed address.)
+
+test test_6 PASSED (1 of 1)
+ (Places one filebacked map at a fixed address.)
+
+test test_7 FAILED (0 of 1)
+ (Places multiple maps at different addresses.)
+ tester failed
+
+test test_8 FAILED (0 of 1)
+ (Places a large number of anonymous maps at fixed and non-fixed addresses)
+ tester failed
+
+test test_9 FAILED (0 of 1)
+ (access anonymous map (checks for memory allocation))
+ Unexpected exception name 'e' is not defined
+
+test test_10 FAILED (0 of 1)
+ (access one big filebacked map (checks for memory allocation))
+ Unexpected exception name 'e' is not defined
+
+test test_11 FAILED (0 of 1)
+ (Places a large number of anonymous maps at fixed and non-fixed addresses and then accesses all pages of each map.)
+ tester failed
+
+test test_12 FAILED (0 of 1)
+ (Checks for lazy allocation in fixed anon mapping)
+ Unexpected exception name 'e' is not defined
+
+test test_13 FAILED (0 of 1)
+ (Checks for lazy allocation in fixed filebacked mapping)
+ Unexpected exception name 'e' is not defined
+
+Passed 4 of 11 tests.
+Overall 4 of 11
+Points 3 of 10

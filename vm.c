@@ -9,7 +9,7 @@
 #include "spinlock.h"
 #include "wmap.h"
 #include "fs.h"
-#include "sleeplock.h" 
+#include "sleeplock.h"
 #include "file.h"
 #include "stat.h"
 #include "fcntl.h"
@@ -491,7 +491,7 @@ uint wmap(uint addr, int length, int flags, int fd)
       if (flags & MAP_ANONYMOUS)
       {
         curproc->wmap_regions[i] = wmap_region;
-        return 0;
+        return addr; // Return the address of the memory region
       }
       else
       {
@@ -503,7 +503,7 @@ uint wmap(uint addr, int length, int flags, int fd)
         if (flags & MAP_SHARED || flags & MAP_PRIVATE)
         {
           curproc->wmap_regions[i] = wmap_region;
-          return 0;
+          return addr; // Return the address of the memory region
         }
       }
     }
@@ -552,6 +552,47 @@ int wunmap(uint addr)
   }
 
   return -1; // No mapping found
+}
+
+// Count the number of loaded pages in the region [addr, addr+length)
+int count_pages(uint addr, int length)
+{
+  int count = 0;
+  uint a;
+  pte_t *pte;
+
+  for (a = addr; a < addr + length; a += PGSIZE)
+  {
+    if ((pte = walkpgdir(myproc()->pgdir, (void *)a, 0)) != 0 && (*pte & PTE_P))
+    {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+// Get memory mapping information system call
+int getwmapinfo(struct wmapinfo *wminfo)
+{
+  struct proc *curproc = myproc();
+
+  int i, count = 0;
+  for (i = 0; i < 16; i++)
+  {
+    struct wmap_region *wmap_region = curproc->wmap_regions[i];
+    if (wmap_region != 0)
+    {
+      wminfo->addr[count] = wmap_region->addr;
+      wminfo->length[count] = wmap_region->length;
+      wminfo->n_loaded_pages[count] = count_pages(wmap_region->addr, wmap_region->length);
+      count++;
+    }
+  }
+
+  wminfo->total_mmaps = count;
+
+  return 0;
 }
 
 // PAGEBREAK!
