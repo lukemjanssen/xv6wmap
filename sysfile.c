@@ -489,3 +489,11 @@ int sys_getwmapinfo(void)
     return -1;
   return getwmapinfo(wminfo);
 }
+
+int sys_getpgdirinfo(void)
+{
+  struct pgdirinfo *pdinfo;
+  if (argptr(0, (void *)&pdinfo, sizeof(*pdinfo)) < 0)
+    return -1;
+  return getpgdirinfo(pdinfo);
+}

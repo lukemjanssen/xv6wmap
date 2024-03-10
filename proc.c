@@ -234,6 +234,15 @@ exit(void)
   if(curproc == initproc)
     panic("init exiting");
 
+  // Unmap all memory pages.
+  for (int i = 0; i < curproc->sz; i += PGSIZE) {
+    if (curproc->pgdir[PDX(i)] & PTE_P) {
+      char *v = (char *) i;
+      kfree(v);
+      v = 0;
+    }
+  }
+
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){

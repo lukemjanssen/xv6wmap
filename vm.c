@@ -596,6 +596,43 @@ int getwmapinfo(struct wmapinfo *wminfo)
   return 0;
 }
 
+//  Retrieve information about the process address space by populating struct pgdirinfo
+int getpgdirinfo(struct pgdirinfo *pgdi)
+{
+  struct proc *curproc = myproc();
+  pde_t *pgdir = curproc->pgdir;
+
+  uint n_upages = 0;
+  uint va[MAX_UPAGE_INFO];
+  uint pa[MAX_UPAGE_INFO];
+  int i;
+  for (i = 0; i < NPDENTRIES; i++)
+  {
+    if (pgdir[i] & PTE_P)
+    {
+      pte_t *pte;
+      for (pte = (pte_t *)P2V(PTE_ADDR(pgdir[i])); pte < (pte_t *)P2V(PTE_ADDR(pgdir[i])) + NPTENTRIES; pte++)
+      {
+        if (*pte & PTE_P)
+        {
+          va[n_upages] = PGADDR(i, pte - (pte_t *)P2V(PTE_ADDR(pgdir[i])), 0);
+          pa[n_upages] = PTE_ADDR(*pte);
+          n_upages++;
+        }
+      }
+    }
+  }
+
+  pgdi->n_upages = n_upages;
+  for (i = 0; i < n_upages; i++)
+  {
+    pgdi->va[i] = va[i];
+    pgdi->pa[i] = pa[i];
+  }
+
+  return 0;
+}
+
 // PAGEBREAK!
 //  Blank page.
 // PAGEBREAK!

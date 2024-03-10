@@ -10,6 +10,7 @@ struct sleeplock;
 struct stat;
 struct superblock;
 struct wmapinfo;
+struct pgdirinfo;
 
 // bio.c
 void            binit(void);
@@ -189,6 +190,7 @@ void            clearpteu(pde_t *pgdir, char *uva);
 uint            wmap(uint addr, int length, int flags, int fd);
 int             wunmap(uint addr);
 int             getwmapinfo(struct wmapinfo *wmi);
+int             getpgdirinfo(struct pgdirinfo *pgdi);
 pte_t*          walkpgdir(pde_t *pgdir, const void *va, int alloc);
 int             mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm);
 
