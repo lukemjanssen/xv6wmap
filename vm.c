@@ -597,8 +597,8 @@ int getwmapinfo(struct wmapinfo *wminfo)
 
   struct proc *curproc = myproc();
 
-  int i, count = 0;
-  for (i = 0; i < 16; i++)
+  int count = 0;
+  for (int i = 0; i < 16; i++)
   {
     struct wmap_region *wmap_region = curproc->wmap_regions[i];
     if (wmap_region != 0)
@@ -665,10 +665,3 @@ int getpgdirinfo(struct pgdirinfo *pdinfo)
 
   return 0;
 }
-
-// PAGEBREAK!
-//  Blank page.
-// PAGEBREAK!
-//  Blank page.
-// PAGEBREAK!
-//  Blank page.

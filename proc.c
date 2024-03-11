@@ -316,31 +316,31 @@ void exit(void)
 
   acquire(&ptable.lock);
 
-  // // Check if process is parent (has no parent, thus it is the parent)
-  // if (!curproc->parent)
-  // {
-  //   // Free all physical memory
-  //   struct wmap_region *wmap_region;
-  //   for (int i = 0; i < 16; i++)
-  //   {
-  //     wmap_region = curproc->wmap_regions[i];
+  // Check if process is parent (has no parent, thus it is the parent)
+  if (!curproc->parent)
+  {
+    // Free all physical memory
+    struct wmap_region *wmap_region;
+    for (int i = 0; i < 16; i++)
+    {
+      wmap_region = curproc->wmap_regions[i];
 
-  //     pte_t *pt_entry;
-  //     uint addr = PGROUNDDOWN(wmap_region->addr);
-  //     uint endt = PGROUNDUP(addr + wmap_region->length);
+      pte_t *pt_entry;
+      uint addr = PGROUNDDOWN(wmap_region->addr);
+      uint endt = PGROUNDUP(addr + wmap_region->length);
 
-  //     for (; addr < endt; addr += PGSIZE)
-  //     {
-  //       if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) != 0)
-  //       {
-  //         kfree(P2V(PTE_ADDR(pt_entry)));
-  //         *pt_entry = 0;
-  //       }
-  //     }
+      for (; addr < endt; addr += PGSIZE)
+      {
+        if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) != 0)
+        {
+          kfree(P2V(PTE_ADDR(pt_entry)));
+          *pt_entry = 0;
+        }
+      }
 
-  //     memset(wmap_region, 0, sizeof(struct wmap_region));
-  //   }
-  // }
+      memset(wmap_region, 0, sizeof(struct wmap_region));
+    }
+  }
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);

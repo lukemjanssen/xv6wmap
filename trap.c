@@ -133,6 +133,7 @@ void trap(struct trapframe *tf)
             kill(curproc->pid);
             return;
           }
+          break;
         }
         return;
       }
