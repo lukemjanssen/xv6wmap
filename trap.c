@@ -9,10 +9,12 @@
 #include "spinlock.h"
 #include "wmap.h"
 #include "fs.h"
-#include "sleeplock.h" 
+#include "sleeplock.h"
 #include "file.h"
 #include "stat.h"
 #include "fcntl.h"
+
+#define min(a, b) ((a) < (b) ? (a) : (b))
 
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
@@ -65,34 +67,84 @@ void trap(struct trapframe *tf)
           faulting_address >= wmap_region->addr &&
           faulting_address < wmap_region->addr + wmap_region->length)
       {
-        char *mem = kalloc();
-        if (mem == 0)
-        {
-          cprintf("out of memory\n");
-          kill(curproc->pid);
-          return;
-        }
-        memset(mem, 0, PGSIZE);
+        // Calculate the number of pages in the mapped region
+        uint num_pages = PGROUNDUP(wmap_region->length) / PGSIZE;
 
-        // If the mapping is file-backed, read the data from the file
-        if (!(wmap_region->flags & MAP_ANONYMOUS))
+        // Loop over each page in the mapped region
+        for (uint j = 0; j < num_pages; j++)
         {
-          ilock(curproc->ofile[wmap_region->fd]->ip);
-          readi(curproc->ofile[wmap_region->fd]->ip, mem, faulting_address - wmap_region->addr, PGSIZE);
-          iunlock(curproc->ofile[wmap_region->fd]->ip);
-        }
+          // Calculate the faulting address for this page
+          uint faulting_address_page = PGROUNDDOWN(faulting_address) + j * PGSIZE;
 
-        if (mappages(curproc->pgdir, (char *)PGROUNDDOWN(faulting_address), PGSIZE, V2P(mem), PTE_W | PTE_U) < 0)
-        {
-          cprintf("out of memory (2)\n");
-          kill(curproc->pid);
-          return;
+          char *mem = kalloc();
+          if (mem == 0)
+          {
+            cprintf("out of memory\n");
+            kill(curproc->pid);
+            return;
+          }
+          memset(mem, 0, PGSIZE);
+
+          // If the mapping is file-backed, read the data from the file
+          if (!(wmap_region->flags & MAP_ANONYMOUS))
+          {
+            // Check the file descriptor
+            struct file *f = curproc->ofile[wmap_region->fd];
+            if (f == 0 || !(f->readable))
+            {
+              cprintf("invalid file descriptor\n");
+              kill(curproc->pid);
+              return;
+            }
+
+            // Calculate the offset in the file
+            uint offset = faulting_address_page - wmap_region->addr;
+
+            // Check the offset
+            if (offset >= f->ip->size)
+            {
+              cprintf("invalid offset\n");
+              kill(curproc->pid);
+              return;
+            }
+
+            // Calculate the number of bytes to read
+            uint remaining_bytes_in_file = f->ip->size - offset;
+            uint n = min(remaining_bytes_in_file, (uint)PGSIZE);
+
+            // Read the data from the file
+            ilock(f->ip);
+            int bytesRead = readi(f->ip, mem, offset, n);
+            iunlock(f->ip);
+
+            // Check the number of bytes read
+            if (bytesRead != n)
+            {
+              cprintf("failed to read data from file\n");
+              kill(curproc->pid);
+              return;
+            }
+          }
+
+          if (mappages(curproc->pgdir, (char *)faulting_address_page, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0)
+          {
+            cprintf("out of memory (2)\n");
+            kfree(mem); // Free the allocated page
+            kill(curproc->pid);
+            return;
+          }
         }
         return;
       }
     }
+    // If the faulting address is not within a file-backed memory mapping, segfault
+    cprintf("pid %d %s: trap %d err %d on cpu %d "
+            "eip 0x%x addr 0x%x--kill proc\n",
+            myproc()->pid, myproc()->name, tf->trapno,
+            tf->err, cpuid(), tf->eip, rcr2());
+    myproc()->killed = 1;
+    return;
   }
-  break;
   case T_IRQ0 + IRQ_TIMER:
     if (cpuid() == 0)
     {

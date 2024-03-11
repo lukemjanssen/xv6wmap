@@ -429,15 +429,20 @@ int region_overlaps(struct proc *curproc, uint addr, int length)
 {
   struct wmap_region *wmap_region;
   int i;
+  uint end_addr = addr + length;
   for (i = 0; i < 16; i++)
   {
     wmap_region = curproc->wmap_regions[i];
-    if (wmap_region != 0 &&
-        ((addr >= wmap_region->addr && addr < wmap_region->addr + wmap_region->length) ||
-         (addr + length > wmap_region->addr && addr + length <= wmap_region->addr + wmap_region->length) ||
-         (addr <= wmap_region->addr && addr + length >= wmap_region->addr + wmap_region->length)))
+    if (wmap_region != 0)
     {
-      return 1; // The region overlaps
+      uint wmap_start = wmap_region->addr;
+      uint wmap_end = wmap_start + wmap_region->length;
+      if ((addr >= wmap_start && addr < wmap_end) ||
+          (end_addr > wmap_start && end_addr <= wmap_end) ||
+          (addr <= wmap_start && end_addr >= wmap_end))
+      {
+        return 1; // The region overlaps
+      }
     }
   }
   return 0; // The region does not overlap
@@ -481,8 +486,10 @@ uint wmap(uint addr, int length, int flags, int fd)
       wmap_region = (struct wmap_region *)kalloc();
       if (wmap_region == 0)
       {
+        cprintf("wmap: failed to allocate memory for wmap_region\n");
         return -1;
       }
+
       wmap_region->addr = addr;
       wmap_region->length = length;
       wmap_region->flags = flags;
@@ -497,7 +504,7 @@ uint wmap(uint addr, int length, int flags, int fd)
       else
       {
         struct file *f;
-        if (fd < 0 || fd >= NOFILE || (f = curproc->ofile[fd]) == 0)
+        if (fd < 0 || fd >= NOFILE || (f = curproc->ofile[fd]) == 0 || !(f->readable))
         {
           return -1;
         }
@@ -576,6 +583,11 @@ int count_pages(uint addr, int length)
 // Get memory mapping information system call
 int getwmapinfo(struct wmapinfo *wminfo)
 {
+  if (wminfo == 0)
+  {
+    return -1; // Invalid pointer
+  }
+
   struct proc *curproc = myproc();
 
   int i, count = 0;
@@ -596,42 +608,52 @@ int getwmapinfo(struct wmapinfo *wminfo)
   return 0;
 }
 
-//  Retrieve information about the process address space by populating struct pgdirinfo
-int getpgdirinfo(struct pgdirinfo *pgdi)
-{
-  struct proc *curproc = myproc();
-  pde_t *pgdir = curproc->pgdir;
+// //  Retrieve information about the process address space by populating struct pgdirinfo
+// int getpgdirinfo(struct pgdirinfo *pgdi)
+// {
+//   if (pgdi == 0)
+//   {
+//     return -1; // Invalid pointer
+//   }
 
-  uint n_upages = 0;
-  uint va[MAX_UPAGE_INFO];
-  uint pa[MAX_UPAGE_INFO];
-  int i;
-  for (i = 0; i < NPDENTRIES; i++)
-  {
-    if (pgdir[i] & PTE_P)
-    {
-      pte_t *pte;
-      for (pte = (pte_t *)P2V(PTE_ADDR(pgdir[i])); pte < (pte_t *)P2V(PTE_ADDR(pgdir[i])) + NPTENTRIES; pte++)
-      {
-        if (*pte & PTE_P)
-        {
-          va[n_upages] = PGADDR(i, pte - (pte_t *)P2V(PTE_ADDR(pgdir[i])), 0);
-          pa[n_upages] = PTE_ADDR(*pte);
-          n_upages++;
-        }
-      }
-    }
-  }
+//   struct proc *curproc = myproc();
+//   pde_t *pgdir = curproc->pgdir;
 
-  pgdi->n_upages = n_upages;
-  for (i = 0; i < n_upages; i++)
-  {
-    pgdi->va[i] = va[i];
-    pgdi->pa[i] = pa[i];
-  }
+//   if (pgdir == 0)
+//   {
+//     return -1; // Invalid page directory
+//   }
 
-  return 0;
-}
+//   uint n_upages = 0;
+//   uint va[MAX_UPAGE_INFO];
+//   uint pa[MAX_UPAGE_INFO];
+//   int i;
+//   for (i = 0; i < NPDENTRIES; i++)
+//   {
+//     if (pgdir[i] & PTE_P)
+//     {
+//       pte_t *pte;
+//       for (pte = (pte_t *)P2V(PTE_ADDR(pgdir[i])); pte < (pte_t *)P2V(PTE_ADDR(pgdir[i])) + NPTENTRIES; pte++)
+//       {
+//         if (*pte & PTE_P)
+//         {
+//           va[n_upages] = PGADDR(i, pte - (pte_t *)P2V(PTE_ADDR(pgdir[i])), 0);
+//           pa[n_upages] = PTE_ADDR(*pte);
+//           n_upages++;
+//         }
+//       }
+//     }
+//   }
+
+//   pgdi->n_upages = n_upages;
+//   for (i = 0; i < n_upages; i++)
+//   {
+//     pgdi->va[i] = va[i];
+//     pgdi->pa[i] = pa[i];
+//   }
+
+//   return 0;
+// }
 
 // PAGEBREAK!
 //  Blank page.
