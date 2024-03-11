@@ -215,54 +215,50 @@ int fork(void)
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
-  // 
-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-    kfree(np->kstack);
-    np->kstack = 0;
-    np->state = UNUSED;
-    return -1;
-  }
-
   // Copy over all mappings from parent to child
-  for (int i = 0; i < 16; i++) {
+  for (int i = 0; i < 16; i++)
+  {
     np->wmap_regions[i] = curproc->wmap_regions[i];
 
-    // Do nothing for invalid wmap_regions 
+    // Do nothing for invalid wmap_regions
     if (!np->wmap_regions[i])
       continue;
 
-    struct wmap_region* wmap_region = np->wmap_regions[i];
+    struct wmap_region *wmap_region = np->wmap_regions[i];
 
     pte_t *pt_entry;
     uint addr = PGROUNDDOWN(wmap_region->addr);
     uint end = PGROUNDUP(addr + wmap_region->length);
 
     // Copy physical pages from parent to child
-    for (; addr < end; addr += PGSIZE) {
-      if ((pt_entry = walkpgdir(curproc->pgdir, (char*) addr, 0)) == 0)
+    for (; addr < end; addr += PGSIZE)
+    {
+      if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) == 0)
         continue;
 
-      uint ppa; 
+      uint ppa;
 
-      if (!(ppa = PTE_ADDR(*pt_entry)))
-        continue;
-
-      // Assume MMAP_SHARED, use parent's physical pages
-      char* mem = P2V(ppa);
-
-      if (wmap_region->flags & MAP_PRIVATE) {
-        if((mem = kalloc()) == 0){
-          panic("kalloc: out of memory");
-        }
-
-        // Pass data to child
-        memmove(mem, (char*) P2V(ppa), PGSIZE);
+      if (wmap_region->flags & MAP_SHARED)
+      {
+        // For shared mappings, simply map the same physical page to the child's page table
+        ppa = PTE_ADDR(*pt_entry);
+      }
+      else if (wmap_region->flags & MAP_PRIVATE)
+      {
+        // For private mappings, create a new physical page and copy the contents of the original page to it
+        char *mem;
+        if ((mem = kalloc()) == 0)
+          panic("fork: out of memory");
+        memmove(mem, (char *)P2V(PTE_ADDR(*pt_entry)), PGSIZE);
+        ppa = V2P(mem);
+      }
+      else
+      {
+        panic("fork: unknown mapping flags");
       }
 
-      // Map physical page to child's virtual address space
-      if(mappages(np->pgdir, (char*) addr, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
-        panic("kalloc: out of memory");
-      }
+      if (mappages(np->pgdir, (void *)addr, PGSIZE, ppa, PTE_FLAGS(*pt_entry)) < 0)
+        panic("fork: mappages failed");
     }
   }
 
@@ -316,31 +312,31 @@ void exit(void)
 
   acquire(&ptable.lock);
 
-  // // Check if process is parent (has no parent, thus it is the parent)
-  // if (!curproc->parent)
-  // {
-  //   // Free all physical memory
-  //   struct wmap_region *wmap_region;
-  //   for (int i = 0; i < 16; i++)
-  //   {
-  //     wmap_region = curproc->wmap_regions[i];
+  // Check if process is parent (has no parent, thus it is the parent)
+  if (!curproc->parent)
+  {
+    // Free all physical memory
+    struct wmap_region *wmap_region;
+    for (int i = 0; i < 16; i++)
+    {
+      wmap_region = curproc->wmap_regions[i];
 
-  //     pte_t *pt_entry;
-  //     uint addr = PGROUNDDOWN(wmap_region->addr);
-  //     uint endt = PGROUNDUP(addr + wmap_region->length);
+      pte_t *pt_entry;
+      uint addr = PGROUNDDOWN(wmap_region->addr);
+      uint endt = PGROUNDUP(addr + wmap_region->length);
 
-  //     for (; addr < endt; addr += PGSIZE)
-  //     {
-  //       if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) != 0)
-  //       {
-  //         kfree(P2V(PTE_ADDR(pt_entry)));
-  //         *pt_entry = 0;
-  //       }
-  //     }
+      for (; addr < endt; addr += PGSIZE)
+      {
+        if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) != 0)
+        {
+          kfree(P2V(PTE_ADDR(pt_entry)));
+          *pt_entry = 0;
+        }
+      }
 
-  //     memset(wmap_region, 0, sizeof(struct wmap_region));
-  //   }
-  // }
+      memset(wmap_region, 0, sizeof(struct wmap_region));
+    }
+  }
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);

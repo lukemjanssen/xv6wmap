@@ -341,35 +341,6 @@ copyuvm(pde_t *pgdir, uint sz)
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
 
-    // If the page is part of a memory mapping, copy it lazily
-    struct proc *curproc = myproc();
-    struct wmap_region *wmap_region;
-    int j;
-    for (j = 0; j < 16; j++)
-    {
-      wmap_region = curproc->wmap_regions[j];
-      if (wmap_region != 0 &&
-          i >= wmap_region->addr &&
-          i < wmap_region->addr + wmap_region->length)
-      {
-        if (wmap_region->flags & MAP_SHARED)
-        {
-          if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
-            goto bad;
-          break;
-        }
-        else if (wmap_region->flags & MAP_PRIVATE)
-        {
-          if ((mem = kalloc()) == 0)
-            goto bad;
-          memmove(mem, (char *)P2V(pa), PGSIZE);
-          if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
-            goto bad;
-          break;
-        }
-      }
-    }
-
     if ((mem = kalloc()) == 0)
       goto bad;
     memmove(mem, (char *)P2V(pa), PGSIZE);

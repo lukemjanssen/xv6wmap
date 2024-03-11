@@ -59,15 +59,15 @@ objdump -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > kernel.sym
 dd if=/dev/zero of=xv6.img count=10000
 10000+0 records in
 10000+0 records out
-5120000 bytes (5.1 MB, 4.9 MiB) copied, 0.0328025 s, 156 MB/s
+5120000 bytes (5.1 MB, 4.9 MiB) copied, 0.00996064 s, 514 MB/s
 dd if=bootblock of=xv6.img conv=notrunc
 1+0 records in
 1+0 records out
-512 bytes copied, 0.000165508 s, 3.1 MB/s
+512 bytes copied, 0.000116702 s, 4.4 MB/s
 dd if=kernel of=xv6.img seek=1 conv=notrunc
-423+1 records in
-423+1 records out
-216632 bytes (217 kB, 212 KiB) copied, 0.00356639 s, 60.7 MB/s
+422+1 records in
+422+1 records out
+216400 bytes (216 kB, 211 KiB) copied, 0.000299005 s, 724 MB/s
 gcc -Werror -Wall -o mkfs mkfs.c
 gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o ulib.o ulib.c
 gcc -m32 -gdwarf-2 -Wa,-divide   -c -o usys.o usys.S
@@ -152,11 +152,11 @@ Validates mmaps exists in the mmap list in both parent and child for anonymous p
 
 **********************************************************************
 Running xv6 user progam /home/cs537-1/tests/P4/4_fork_tests/test_21.c
-DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmp688dgtk1/p/Makefile', '/tmp/tmp688dgtk1/p/Makefile.test']
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpl6u1_xhz/p/Makefile', '/tmp/tmpl6u1_xhz/p/Makefile.test']
 Trying to build project using make
 make xv6.img fs.img
-/tmp/tmp688dgtk1/p/Makefile
-/tmp/tmp688dgtk1/p/Makefile.test
+/tmp/tmpl6u1_xhz/p/Makefile
+/tmp/tmpl6u1_xhz/p/Makefile.test
 make: 'xv6.img' is up to date.
 make: 'fs.img' is up to date.
 make qemu-nox CPUS=1
@@ -194,6 +194,7 @@ Map 1 and 2 exist in the parent process. 	Okay
 WMMAP	 SUCCESS
 
 
+
 test test_21 PASSED (1 of 1)
  (Validates mmaps exists in the mmap list in both parent and child for anonymous private and shared mappings with fork)
 
@@ -206,11 +207,11 @@ Validates parent can NOT see child's change for anonymous private mappings with 
 
 **********************************************************************
 Running xv6 user progam /home/cs537-1/tests/P4/4_fork_tests/test_22.c
-DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmp688dgtk1/p/Makefile', '/tmp/tmp688dgtk1/p/Makefile.test']
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpl6u1_xhz/p/Makefile', '/tmp/tmpl6u1_xhz/p/Makefile.test']
 Trying to build project using make
 make xv6.img fs.img
-/tmp/tmp688dgtk1/p/Makefile
-/tmp/tmp688dgtk1/p/Makefile.test
+/tmp/tmpl6u1_xhz/p/Makefile
+/tmp/tmpl6u1_xhz/p/Makefile.test
 make: 'xv6.img' is up to date.
 make: 'fs.img' is up to date.
 make qemu-nox CPUS=1
@@ -239,14 +240,15 @@ tester
 
 
 TEST_22
-Parent waits Child process sees Map 1. 	Okay
+Parent waits for the child to exit
+Child process sees Map 1. 	Okay
 Child sees the same data as the parent in Map 1. 	Okay
 Child modified the data in Map 1. 	Okay
-for the child to exit
 Parent process sees Map 1. 	Okay
 Parent sees the old data in Map 1. 	Okay
 
 WMMAP	 SUCCESS
+
 
 test test_22 PASSED (1 of 1)
  (Validates parent can NOT see child's change for anonymous private mappings with fork)
@@ -260,11 +262,11 @@ Validates parent and child can NOT see eachothers change for anonymous private m
 
 **********************************************************************
 Running xv6 user progam /home/cs537-1/tests/P4/4_fork_tests/test_23.c
-DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmp688dgtk1/p/Makefile', '/tmp/tmp688dgtk1/p/Makefile.test']
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpl6u1_xhz/p/Makefile', '/tmp/tmpl6u1_xhz/p/Makefile.test']
 Trying to build project using make
 make xv6.img fs.img
-/tmp/tmp688dgtk1/p/Makefile
-/tmp/tmp688dgtk1/p/Makefile.test
+/tmp/tmpl6u1_xhz/p/Makefile
+/tmp/tmpl6u1_xhz/p/Makefile.test
 make: 'xv6.img' is up to date.
 make: 'fs.img' is up to date.
 make qemu-nox CPUS=1
@@ -295,9 +297,9 @@ tester
 TEST_23
 Map 1 created at 0x60000000 with length 40960. 	Okay
 Wrote 'a' to all pages of Map 1. 	Okay
-Child process sees Map 1. 	Okay
 Parent process sees Map 1. 	Okay
-Parent modified the data to 'x' in Map 1. 	Okay
+Parent modified the data to 'x' Child process sees Map 1. 	Okay
+in Map 1. 	Okay
 Parent waits for the child to exit.
 Child waited for 200 ticks. 	Okay
 Child sees 'a' in Map 1. 	Okay
@@ -305,6 +307,7 @@ Child modified the data to 'y' in Map 1. 	Okay
 Parent sees 'x' in Map 1. 	Okay
 
 WMMAP	 SUCCESS
+
 
 test test_23 PASSED (1 of 1)
  (Validates parent and child can NOT see eachothers change for anonymous private mappings with fork)
@@ -318,11 +321,11 @@ Validates parent can NOT see child's change for filebacked private mappings with
 
 **********************************************************************
 Running xv6 user progam /home/cs537-1/tests/P4/4_fork_tests/test_24.c
-DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmp688dgtk1/p/Makefile', '/tmp/tmp688dgtk1/p/Makefile.test']
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpl6u1_xhz/p/Makefile', '/tmp/tmpl6u1_xhz/p/Makefile.test']
 Trying to build project using make
 make xv6.img fs.img
-/tmp/tmp688dgtk1/p/Makefile
-/tmp/tmp688dgtk1/p/Makefile.test
+/tmp/tmpl6u1_xhz/p/Makefile
+/tmp/tmpl6u1_xhz/p/Makefile.test
 make: 'xv6.img' is up to date.
 make: 'fs.img' is up to date.
 make qemu-nox CPUS=1
@@ -372,11 +375,11 @@ Validates parent can see child's change for anonymous shared mappings with fork
 
 **********************************************************************
 Running xv6 user progam /home/cs537-1/tests/P4/4_fork_tests/test_25.c
-DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmp688dgtk1/p/Makefile', '/tmp/tmp688dgtk1/p/Makefile.test']
+DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmpl6u1_xhz/p/Makefile', '/tmp/tmpl6u1_xhz/p/Makefile.test']
 Trying to build project using make
 make xv6.img fs.img
-/tmp/tmp688dgtk1/p/Makefile
-/tmp/tmp688dgtk1/p/Makefile.test
+/tmp/tmpl6u1_xhz/p/Makefile
+/tmp/tmpl6u1_xhz/p/Makefile.test
 make: 'xv6.img' is up to date.
 make: 'fs.img' is up to date.
 make qemu-nox CPUS=1
@@ -405,10 +408,10 @@ tester
 
 
 TEST_25
-PaChild process sees Map 1. 	Okay
+Parent waits for the child to exit
+Child process sees Map 1. 	Okay
 Child sees the same data as the parent in Map 1. 	Okay
 Child modified the data in Map 1. 	Okay
-rent waits for the child to exit
 Parent process sees Map 1. 	Okay
 Cause: Parent sees 0 at Map 1, but expected 97
 
@@ -418,205 +421,5 @@ test test_25 FAILED (0 of 1)
  (Validates parent can see child's change for anonymous shared mappings with fork)
  tester failed
 
-starting test_26
-
-**********************************************************************
-
-Test test_26
-Validates parent and child can see each others changes for anonymous shared mappings with fork
-
-**********************************************************************
-Running xv6 user progam /home/cs537-1/tests/P4/4_fork_tests/test_26.c
-DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmp688dgtk1/p/Makefile', '/tmp/tmp688dgtk1/p/Makefile.test']
-Trying to build project using make
-make xv6.img fs.img
-/tmp/tmp688dgtk1/p/Makefile
-/tmp/tmp688dgtk1/p/Makefile.test
-make: 'xv6.img' is up to date.
-make: 'fs.img' is up to date.
-make qemu-nox CPUS=1
-gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
-ld -m    elf_i386 -N -e main -Ttext 0 -o _tester tester.o ulib.o usys.o printf.o umalloc.o
-objdump -S _tester > tester.asm
-objdump -t _tester | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > tester.sym
-./mkfs fs.img README _cat _echo _forktest _grep _init _kill _ln _ls _tester _mkdir _rm _sh _stressfs _usertests _wc _zombie 
-nmeta 59 (boot, super, log blocks 30 inode blocks 26, bitmap blocks 1) blocks 941 total 1000
-balloc: first 684 blocks have been allocated
-balloc: write bitmap block at sector 58
-qemu-system-i386 -nographic -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 1 -m 512 
-c[?7l[2J[0mSeaBIOS (version 1.15.0-1)
-
-
-iPXE (https://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+1FF8B4A0+1FECB4A0 CA00
-Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
-
-
-Booting from Hard Disk..xv6...
-cpu0: starting 0
-sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
-init: starting sh
-$ tester
-tester
-
-
-TEST_26
-Parent process sees Map 1. 	Okay
-Parent modified the data in Map 1. 	Okay
-Child process sees Map 1. 	Okay
-Child sees the parent-modified data in Map 1. 	Okay
-Child modified the data in Map 1. 	Okay
-Cause: Parent sees 0 at Map 1, but expected 121
-
-WMMAP	 FAILED
-
-test test_26 FAILED (0 of 1)
- (Validates parent and child can see each others changes for anonymous shared mappings with fork)
- tester failed
-
-starting test_27
-
-**********************************************************************
-
-Test test_27
-Validates child unmapping a private anon map does not affect the parent
-
-**********************************************************************
-Running xv6 user progam /home/cs537-1/tests/P4/4_fork_tests/test_27.c
-DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmp688dgtk1/p/Makefile', '/tmp/tmp688dgtk1/p/Makefile.test']
-Trying to build project using make
-make xv6.img fs.img
-/tmp/tmp688dgtk1/p/Makefile
-/tmp/tmp688dgtk1/p/Makefile.test
-make: 'xv6.img' is up to date.
-make: 'fs.img' is up to date.
-make qemu-nox CPUS=1
-gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
-ld -m    elf_i386 -N -e main -Ttext 0 -o _tester tester.o ulib.o usys.o printf.o umalloc.o
-objdump -S _tester > tester.asm
-objdump -t _tester | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > tester.sym
-./mkfs fs.img README _cat _echo _forktest _grep _init _kill _ln _ls _tester _mkdir _rm _sh _stressfs _usertests _wc _zombie 
-nmeta 59 (boot, super, log blocks 30 inode blocks 26, bitmap blocks 1) blocks 941 total 1000
-balloc: first 684 blocks have been allocated
-balloc: write bitmap block at sector 58
-qemu-system-i386 -nographic -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 1 -m 512 
-c[?7l[2J[0mSeaBIOS (version 1.15.0-1)
-
-
-iPXE (https://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+1FF8B4A0+1FECB4A0 CA00
-Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
-
-
-Booting from Hard Disk..xv6...
-cpu0: starting 0
-sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
-init: starting sh
-$ tester
-tester
-
-
-TEST_27
-Map 1 created at 0x60000000 with length 40960. 	Okay
-Wrote 'a' all pages of Map 1. 	Okay
-Child sees Map 1. 	Okay
-Child sees 'a' in Map 1. 	Okay
-Child unmapped Map 1. 	Okay
-Cause: expected 0x60000000 with length 40960 to exist in the list of maps
-
-WMMAP	 FAILED
-
-test test_27 FAILED (0 of 1)
- (Validates child unmapping a private anon map does not affect the parent)
- tester failed
-
-starting test_28
-
-**********************************************************************
-
-Test test_28
-Validates child unmapping a shared anon map does not affect the parent
-
-**********************************************************************
-Running xv6 user progam /home/cs537-1/tests/P4/4_fork_tests/test_28.c
-DEBUG: cmd = ['/home/cs537-1/tests/P4/edit-makefile.sh', '/tmp/tmp688dgtk1/p/Makefile', '/tmp/tmp688dgtk1/p/Makefile.test']
-Trying to build project using make
-make xv6.img fs.img
-/tmp/tmp688dgtk1/p/Makefile
-/tmp/tmp688dgtk1/p/Makefile.test
-make: 'xv6.img' is up to date.
-make: 'fs.img' is up to date.
-make qemu-nox CPUS=1
-gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o tester.o tester.c
-ld -m    elf_i386 -N -e main -Ttext 0 -o _tester tester.o ulib.o usys.o printf.o umalloc.o
-objdump -S _tester > tester.asm
-objdump -t _tester | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > tester.sym
-./mkfs fs.img README _cat _echo _forktest _grep _init _kill _ln _ls _tester _mkdir _rm _sh _stressfs _usertests _wc _zombie 
-nmeta 59 (boot, super, log blocks 30 inode blocks 26, bitmap blocks 1) blocks 941 total 1000
-balloc: first 684 blocks have been allocated
-balloc: write bitmap block at sector 58
-qemu-system-i386 -nographic -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 1 -m 512 
-c[?7l[2J[0mSeaBIOS (version 1.15.0-1)
-
-
-iPXE (https://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+1FF8B4A0+1FECB4A0 CA00
-Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
-
-
-Booting from Hard Disk...
-xv6...
-cpu0: starting 0
-sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
-init: starting sh
-$ tester
-tester
-
-
-TEST_28
-Map 1 created at 0x60000000 with length 40960. 	Okay
-Wrote 'a' all pages of Map 1. 	Okay
-Child sees Map 1. 	Okay
-Child sees 'a' in Map 1. 	Okay
-Child unmapped Map 1. 	Okay
-Cause: expected 0x60000000 with length 40960 to exist in the list of maps
-
-WMMAP	 FAILED
-
-test test_28 FAILED (0 of 1)
- (Validates child unmapping a shared anon map does not affect the parent)
- tester failed
-
-**********************************************************************
-Summary:
-test build PASSED
- (build xv6 using make)
-
-test test_21 PASSED (1 of 1)
- (Validates mmaps exists in the mmap list in both parent and child for anonymous private and shared mappings with fork)
-
-test test_22 PASSED (1 of 1)
- (Validates parent can NOT see child's change for anonymous private mappings with fork)
-
-test test_23 PASSED (1 of 1)
- (Validates parent and child can NOT see eachothers change for anonymous private mappings with fork)
-
-test test_24 PASSED (1 of 1)
- (Validates parent can NOT see child's change for filebacked private mappings with fork)
-
-test test_25 FAILED (0 of 1)
- (Validates parent can see child's change for anonymous shared mappings with fork)
- tester failed
-
-test test_26 FAILED (0 of 1)
- (Validates parent and child can see each others changes for anonymous shared mappings with fork)
- tester failed
-
-test test_27 FAILED (0 of 1)
- (Validates child unmapping a private anon map does not affect the parent)
- tester failed
-
-test test_28 FAILED (0 of 1)
- (Validates child unmapping a shared anon map does not affect the parent)
- tester failed
-
-Passed 5 of 9 tests.
-Overall 5 of 9
-Points 4 of 8
+Skipped 3 tests.
+To keep testing after failing a test, use flag '-c' or '--continue'
