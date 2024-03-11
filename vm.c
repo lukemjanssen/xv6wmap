@@ -568,8 +568,8 @@ int getwmapinfo(struct wmapinfo *wminfo)
 
   struct proc *curproc = myproc();
 
-  int i, count = 0;
-  for (i = 0; i < 16; i++)
+  int count = 0;
+  for (int i = 0; i < 16; i++)
   {
     struct wmap_region *wmap_region = curproc->wmap_regions[i];
     if (wmap_region != 0)
@@ -619,7 +619,7 @@ int getpgdirinfo(struct pgdirinfo *pdinfo)
       pte = (pte_t *)P2V(PTE_ADDR(pgdir[i]));
       for (j = 0; j < NPTENTRIES; j++)
       {
-        if (pte[j] & PTE_P)
+        if (pte[j] & PTE_P && pte[j] & PTE_U)
         {
           pa = PTE_ADDR(pte[j]);
           pdinfo->va[pdinfo->n_upages] = PGADDR(i, j, 0);
@@ -636,10 +636,3 @@ int getpgdirinfo(struct pgdirinfo *pdinfo)
 
   return 0;
 }
-
-// PAGEBREAK!
-//  Blank page.
-// PAGEBREAK!
-//  Blank page.
-// PAGEBREAK!
-//  Blank page.
