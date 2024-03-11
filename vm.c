@@ -453,9 +453,24 @@ uint wmap(uint addr, int length, int flags, int fd)
 {
   struct proc *curproc = myproc();
 
-  // If MAP_FIXED is not set, find an available region in the virtual address space
-  if (!(flags & MAP_FIXED))
+  // Check if at least one of the MAP_ANONYMOUS, MAP_SHARED, or MAP_PRIVATE flags is set
+  if (!(flags & MAP_ANONYMOUS) && !(flags & MAP_SHARED) && !(flags & MAP_PRIVATE))
   {
+    cprintf("wmap: invalid flags\n");
+    return -1; // Invalid flags
+  }
+
+  // If MAP_FIXED is set, check if the specified address is valid
+  if (flags & MAP_FIXED)
+  {
+    if (addr % PGSIZE != 0 || addr < 0x60000000 || addr >= 0x80000000 || region_overlaps(curproc, addr, length))
+    {
+      return -1; // Invalid address
+    }
+  }
+  else
+  {
+    // If MAP_FIXED is not set, find an available region in the virtual address space
     for (addr = 0x60000000; addr < 0x80000000; addr += PGSIZE)
     {
       if (!region_overlaps(curproc, addr, length))
@@ -466,14 +481,6 @@ uint wmap(uint addr, int length, int flags, int fd)
     if (addr >= 0x80000000)
     {
       return -1; // No available region found
-    }
-  }
-  else
-  {
-    // If MAP_FIXED is set, check if the specified address is valid
-    if (addr % PGSIZE != 0 || addr < 0x60000000 || addr >= 0x80000000 || region_overlaps(curproc, addr, length))
-    {
-      return -1; // Invalid address
     }
   }
 
@@ -608,52 +615,56 @@ int getwmapinfo(struct wmapinfo *wminfo)
   return 0;
 }
 
-// //  Retrieve information about the process address space by populating struct pgdirinfo
-// int getpgdirinfo(struct pgdirinfo *pgdi)
-// {
-//   if (pgdi == 0)
-//   {
-//     return -1; // Invalid pointer
-//   }
+int getpgdirinfo(struct pgdirinfo *pdinfo)
+{
+  struct proc *curproc = myproc();
+  pde_t *pgdir;
+  pte_t *pte;
+  uint pa, i, j;
 
-//   struct proc *curproc = myproc();
-//   pde_t *pgdir = curproc->pgdir;
+  if (pdinfo == 0)
+  {
+    return -1; // Invalid pointer
+  }
 
-//   if (pgdir == 0)
-//   {
-//     return -1; // Invalid page directory
-//   }
+  if (curproc == 0)
+  {
+    return -1; // No current process
+  }
 
-//   uint n_upages = 0;
-//   uint va[MAX_UPAGE_INFO];
-//   uint pa[MAX_UPAGE_INFO];
-//   int i;
-//   for (i = 0; i < NPDENTRIES; i++)
-//   {
-//     if (pgdir[i] & PTE_P)
-//     {
-//       pte_t *pte;
-//       for (pte = (pte_t *)P2V(PTE_ADDR(pgdir[i])); pte < (pte_t *)P2V(PTE_ADDR(pgdir[i])) + NPTENTRIES; pte++)
-//       {
-//         if (*pte & PTE_P)
-//         {
-//           va[n_upages] = PGADDR(i, pte - (pte_t *)P2V(PTE_ADDR(pgdir[i])), 0);
-//           pa[n_upages] = PTE_ADDR(*pte);
-//           n_upages++;
-//         }
-//       }
-//     }
-//   }
+  pgdir = curproc->pgdir;
+  if (pgdir == 0)
+  {
+    return -1; // No page directory for current process
+  }
 
-//   pgdi->n_upages = n_upages;
-//   for (i = 0; i < n_upages; i++)
-//   {
-//     pgdi->va[i] = va[i];
-//     pgdi->pa[i] = pa[i];
-//   }
 
-//   return 0;
-// }
+  pdinfo->n_upages = 0;
+
+  for (i = 0; i < NPDENTRIES; i++)
+  {
+    if (pgdir[i] & PTE_P)
+    {
+      pte = (pte_t *)P2V(PTE_ADDR(pgdir[i]));
+      for (j = 0; j < NPTENTRIES; j++)
+      {
+        if (pte[j] & PTE_P)
+        {
+          pa = PTE_ADDR(pte[j]);
+          pdinfo->va[pdinfo->n_upages] = PGADDR(i, j, 0);
+          pdinfo->pa[pdinfo->n_upages] = pa;
+          pdinfo->n_upages++;
+          if (pdinfo->n_upages >= MAX_UPAGE_INFO)
+          {
+            return 0; // Reached maximum number of pages we can store info about
+          }
+        }
+      }
+    }
+  }
+
+  return 0;
+}
 
 // PAGEBREAK!
 //  Blank page.
