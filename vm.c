@@ -562,6 +562,94 @@ int wunmap(uint addr)
   return -1; // No mapping found
 }
 
+// wremap system call
+uint wremap(uint oldaddr, int oldsize, int newsize, int flags)
+{
+  struct proc *curproc = myproc();
+
+  // Check if the old address is page aligned
+  if (oldaddr % PGSIZE != 0)
+  {
+    return -1; // Invalid address
+  }
+
+  // Check if the old size is a multiple of PGSIZE
+  if (oldsize % PGSIZE != 0)
+  {
+    return -1; // Invalid size
+  }
+
+  // Check if the new size is a multiple of PGSIZE
+  if (newsize % PGSIZE != 0)
+  {
+    return -1; // Invalid size
+  }
+
+  // Check if the old address is within the user address space
+  if (oldaddr < 0x60000000 || oldaddr >= 0x80000000)
+  {
+    return -1; // Invalid address
+  }
+
+  // Check if the new size is within the user address space
+  if (oldaddr + newsize < 0x60000000 || oldaddr + newsize >= 0x80000000)
+  {
+    return -1; // Invalid address
+  }
+
+  // Check if the old address is within a valid memory mapping
+  struct wmap_region *wmap_region;
+  int i;
+  for (i = 0; i < 16; i++)
+  {
+    wmap_region = curproc->wmap_regions[i];
+    if (wmap_region != 0)
+    {
+      uint wmap_start = wmap_region->addr;
+      uint wmap_end = wmap_start + wmap_region->length;
+      if (oldaddr >= wmap_start && oldaddr < wmap_end)
+      {
+        break;
+      }
+    }
+  }
+  if (i >= 16)
+  {
+    return -1; // No valid memory mapping found
+  }
+
+  // Check if the new size overlaps with any existing memory mappings
+  if (region_overlaps(curproc, oldaddr, newsize))
+  {
+    return -1; // Overlapping memory mappings
+  }
+
+  // If the new size is smaller than the old size, unmap the extra pages
+  if (newsize < oldsize)
+  {
+    for (i = oldaddr + newsize; i < oldaddr + oldsize; i += PGSIZE)
+    {
+      if (wunmap(i) < 0)
+      {
+        return -1;
+      }
+    }
+  }
+  // If the new size is larger than the old size, map new pages
+  else if (newsize > oldsize)
+  {
+    for (i = oldaddr + oldsize; i < oldaddr + newsize; i += PGSIZE)
+    {
+      if (wmap(i, PGSIZE, flags, -1) < 0)
+      {
+        return -1;
+      }
+    }
+  }
+
+  return 0;
+}
+
 // Count the number of loaded pages in the region [addr, addr+length)
 int count_pages(uint addr, int length)
 {

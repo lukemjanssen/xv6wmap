@@ -22,6 +22,7 @@
 #define SYS_close  21
 #define SYS_wmap   22
 #define SYS_wunmap 23
-#define SYS_getwmapinfo  24
-#define SYS_getpgdirinfo  25
+#define SYS_wremap 24
+#define SYS_getwmapinfo  25
+#define SYS_getpgdirinfo  26
 

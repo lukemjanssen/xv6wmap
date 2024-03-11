@@ -482,6 +482,17 @@ int sys_wunmap(void)
   return wunmap(addr);
 }
 
+int sys_wremap(void)
+{
+  uint old_addr;
+  int old_length, new_length, flags, fd;
+
+  if (argint(0, (int *)&old_addr) < 0 || argint(1, &old_length) < 0 || argint(2, &new_length) < 0 || argint(3, &flags) < 0 || argint(4, &fd) < 0)
+    return -1;
+
+  return wremap(old_addr, old_length, new_length, flags);
+}
+
 int sys_getwmapinfo(void)
 {
   struct wmapinfo *wminfo;
