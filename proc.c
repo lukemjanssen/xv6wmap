@@ -215,24 +215,53 @@ int fork(void)
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
-  // Copy memory mappings from parent to child
-  for (i = 0; i < 16; i++)
-  {
-    struct wmap_region *parent_wmap_region = curproc->wmap_regions[i];
-    if (parent_wmap_region != 0)
-    {
-      struct wmap_region *child_wmap_region = (struct wmap_region *)kalloc();
-      if (child_wmap_region == 0)
-      {
-        // Handle error: out of memory
-        panic("fork: out of memory");
-      }
-      memmove(child_wmap_region, parent_wmap_region, sizeof(struct wmap_region));
-      np->wmap_regions[i] = child_wmap_region;
+  // 
+  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+    kfree(np->kstack);
+    np->kstack = 0;
+    np->state = UNUSED;
+    return -1;
+  }
 
-      if (parent_wmap_region->flags & MAP_PRIVATE)
-      {
-        mappages(np->pgdir, (char *)child_wmap_region->addr, child_wmap_region->length, V2P(child_wmap_region->addr), PTE_U | PTE_P);
+  // Copy over all mappings from parent to child
+  for (int i = 0; i < 16; i++) {
+    np->wmap_regions[i] = curproc->wmap_regions[i];
+
+    // Do nothing for invalid wmap_regions 
+    if (!np->wmap_regions[i])
+      continue;
+
+    struct wmap_region* wmap_region = np->wmap_regions[i];
+
+    pte_t *pt_entry;
+    uint addr = PGROUNDDOWN(wmap_region->addr);
+    uint end = PGROUNDUP(addr + wmap_region->length);
+
+    // Copy physical pages from parent to child
+    for (; addr < end; addr += PGSIZE) {
+      if ((pt_entry = walkpgdir(curproc->pgdir, (char*) addr, 0)) == 0)
+        continue;
+
+      uint ppa; 
+
+      if (!(ppa = PTE_ADDR(*pt_entry)))
+        continue;
+
+      // Assume MMAP_SHARED, use parent's physical pages
+      char* mem = P2V(ppa);
+
+      if (wmap_region->flags & MAP_PRIVATE) {
+        if((mem = kalloc()) == 0){
+          panic("kalloc: out of memory");
+        }
+
+        // Pass data to child
+        memmove(mem, (char*) P2V(ppa), PGSIZE);
+      }
+
+      // Map physical page to child's virtual address space
+      if(mappages(np->pgdir, (char*) addr, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
+        panic("kalloc: out of memory");
       }
     }
   }
