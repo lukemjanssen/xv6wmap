@@ -341,17 +341,33 @@ copyuvm(pde_t *pgdir, uint sz)
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
 
-    if ((mem = kalloc()) == 0)
-      goto bad;
-    memmove(mem, (char *)P2V(pa), PGSIZE);
-    if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
-      goto bad;
+    // If this is a shared memory region, just map the same physical page to the new page table
+    if (flags & MAP_SHARED)
+    {
+      if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
+      {
+        freevm(d);
+        return 0;
+      }
+    }
+    else
+    {
+      // Otherwise, create a new copy of the memory
+      if ((mem = kalloc()) == 0)
+      {
+        freevm(d);
+        return 0;
+      }
+      memmove(mem, (char *)P2V(pa), PGSIZE);
+      if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
+      {
+        kfree(mem);
+        freevm(d);
+        return 0;
+      }
+    }
   }
   return d;
-
-bad:
-  freevm(d);
-  return 0;
 }
 
 // PAGEBREAK!
@@ -472,6 +488,7 @@ uint wmap(uint addr, int length, int flags, int fd)
       wmap_region->length = length;
       wmap_region->flags = flags;
       wmap_region->fd = fd;
+      wmap_region->ref_count = 1;
 
       // Handle flags
       if (flags & MAP_ANONYMOUS)
@@ -530,9 +547,14 @@ int wunmap(uint addr)
         end_op();
       }
 
-      // Remove the mapping
-      kfree((char *)wmap_region);
-      curproc->wmap_regions[i] = 0;
+      // Decrement the reference count
+      wmap_region->ref_count--;
+      if (wmap_region->ref_count == 0)
+      {
+        // Free the physical memory and remove the wmap_region
+        kfree((char *)wmap_region);
+        curproc->wmap_regions[i] = 0;
+      }
       return 0;
     }
   }
@@ -608,7 +630,6 @@ int getpgdirinfo(struct pgdirinfo *pdinfo)
   {
     return -1; // No page directory for current process
   }
-
 
   pdinfo->n_upages = 0;
 

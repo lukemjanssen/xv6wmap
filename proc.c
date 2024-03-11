@@ -240,8 +240,12 @@ int fork(void)
 
       if (wmap_region->flags & MAP_SHARED)
       {
-        // For shared mappings, simply map the same physical page to the child's page table
+        // For shared mappings, simply increment the reference count of the wmap_region and
+        // map the same physical page to the child's page table
+
         ppa = PTE_ADDR(*pt_entry);
+        // Increment the reference count of the wmap_region
+        wmap_region->ref_count++;
       }
       else if (wmap_region->flags & MAP_PRIVATE)
       {
@@ -286,15 +290,6 @@ void exit(void)
   if (curproc == initproc)
     panic("init exiting");
 
-  // // Use wunmap to unmap all memory mappings
-  // for (int i = 0; i < 16; i++)
-  // {
-  //   if (curproc->wmap_regions[i] != 0)
-  //   {
-  //     wunmap(curproc->wmap_regions[i]->addr);
-  //   }
-  // }
-
   // Close all open files.
   for (fd = 0; fd < NOFILE; fd++)
   {
@@ -312,29 +307,17 @@ void exit(void)
 
   acquire(&ptable.lock);
 
-  // Check if process is parent (has no parent, thus it is the parent)
-  if (!curproc->parent)
+  // // Decrement the reference count for all shared memory regions
+  for (int i = 0; i < 16; i++)
   {
-    // Free all physical memory
-    struct wmap_region *wmap_region;
-    for (int i = 0; i < 16; i++)
+    if (curproc->wmap_regions[i])
     {
-      wmap_region = curproc->wmap_regions[i];
-
-      pte_t *pt_entry;
-      uint addr = PGROUNDDOWN(wmap_region->addr);
-      uint endt = PGROUNDUP(addr + wmap_region->length);
-
-      for (; addr < endt; addr += PGSIZE)
+      curproc->wmap_regions[i]->ref_count--;
+      if (curproc->wmap_regions[i]->ref_count == 0)
       {
-        if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) != 0)
-        {
-          kfree(P2V(PTE_ADDR(pt_entry)));
-          *pt_entry = 0;
-        }
+        // Unmap the shared memory region
+        wunmap(curproc->wmap_regions[i]->addr);
       }
-
-      memset(wmap_region, 0, sizeof(struct wmap_region));
     }
   }
 

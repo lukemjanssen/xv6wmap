@@ -38,6 +38,7 @@ struct wmap_region {
     int length;
     int flags;
     int fd;
+    int ref_count;
 };
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
