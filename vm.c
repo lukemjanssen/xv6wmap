@@ -340,34 +340,20 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: page not present");
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
-
-    // If this is a shared memory region, just map the same physical page to the new page table
-    if (flags & MAP_SHARED)
+    if ((mem = kalloc()) == 0)
+      goto bad;
+    memmove(mem, (char *)P2V(pa), PGSIZE);
+    if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
     {
-      if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
-      {
-        freevm(d);
-        return 0;
-      }
-    }
-    else
-    {
-      // Otherwise, create a new copy of the memory
-      if ((mem = kalloc()) == 0)
-      {
-        freevm(d);
-        return 0;
-      }
-      memmove(mem, (char *)P2V(pa), PGSIZE);
-      if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
-      {
-        kfree(mem);
-        freevm(d);
-        return 0;
-      }
+      kfree(mem);
+      goto bad;
     }
   }
   return d;
+
+bad:
+  freevm(d);
+  return 0;
 }
 
 // PAGEBREAK!
@@ -538,23 +524,42 @@ int wunmap(uint addr)
         struct file *f = curproc->ofile[wmap_region->fd];
         if (f == 0)
         {
-          return -1;
+          return -1; // Invalid file descriptor
         }
-        begin_op();
-        ilock(f->ip);
-        writei(f->ip, (char *)wmap_region->addr, 0, wmap_region->length); // fix this line
-        iunlock(f->ip);
-        end_op();
+
+        uint temp = f->off;
+        f->off = 0;
+
+        // Write the memory data back to the file
+        int written = filewrite(f, (char *)addr, wmap_region->length);
+        if (written != wmap_region->length)
+        {
+          return -1; // Writing the memory data back to the file failed
+        }
+
+        f->off = temp;
+      }
+
+      // Free the physical memory
+      pte_t *pte;
+
+      for (uint a = addr; a < addr + wmap_region->length; a += PGSIZE)
+      {
+        if ((pte = walkpgdir(curproc->pgdir, (void *)a, 0)) != 0 && (*pte & PTE_P)) // Maybe PTE_P
+        {
+          char *v = P2V(PTE_ADDR(*pte));
+          kfree(v);
+          *pte = 0;
+        }
       }
 
       // Decrement the reference count
-      wmap_region->ref_count--;
       if (wmap_region->ref_count == 0)
       {
         // Free the physical memory and remove the wmap_region
         kfree((char *)wmap_region);
-        curproc->wmap_regions[i] = 0;
       }
+      curproc->wmap_regions[i] = 0;
       return 0;
     }
   }
@@ -567,87 +572,80 @@ uint wremap(uint oldaddr, int oldsize, int newsize, int flags)
 {
   struct proc *curproc = myproc();
 
-  // Check if the old address is page aligned
-  if (oldaddr % PGSIZE != 0)
+  // Find the wmap_region that matches the oldaddr and oldsize
+  struct wmap_region *wmap_region = 0;
+  for (int i = 0; i < 16; i++)
   {
-    return -1; // Invalid address
-  }
-
-  // Check if the old size is a multiple of PGSIZE
-  if (oldsize % PGSIZE != 0)
-  {
-    return -1; // Invalid size
-  }
-
-  // Check if the new size is a multiple of PGSIZE
-  if (newsize % PGSIZE != 0)
-  {
-    return -1; // Invalid size
-  }
-
-  // Check if the old address is within the user address space
-  if (oldaddr < 0x60000000 || oldaddr >= 0x80000000)
-  {
-    return -1; // Invalid address
-  }
-
-  // Check if the new size is within the user address space
-  if (oldaddr + newsize < 0x60000000 || oldaddr + newsize >= 0x80000000)
-  {
-    return -1; // Invalid address
-  }
-
-  // Check if the old address is within a valid memory mapping
-  struct wmap_region *wmap_region;
-  int i;
-  for (i = 0; i < 16; i++)
-  {
-    wmap_region = curproc->wmap_regions[i];
-    if (wmap_region != 0)
+    if (curproc->wmap_regions[i] && curproc->wmap_regions[i]->addr == oldaddr && curproc->wmap_regions[i]->length == oldsize)
     {
-      uint wmap_start = wmap_region->addr;
-      uint wmap_end = wmap_start + wmap_region->length;
-      if (oldaddr >= wmap_start && oldaddr < wmap_end)
-      {
-        break;
-      }
+      wmap_region = curproc->wmap_regions[i];
+      break;
     }
   }
-  if (i >= 16)
-  {
-    return -1; // No valid memory mapping found
-  }
 
-  // Check if the new size overlaps with any existing memory mappings
-  if (region_overlaps(curproc, oldaddr, newsize))
-  {
-    return -1; // Overlapping memory mappings
-  }
+  // If no matching wmap_region was found, return -1
+  if (!wmap_region)
+    return -1;
 
-  // If the new size is smaller than the old size, unmap the extra pages
+  // If the newsize is less than the oldsize, shrink the mapping
   if (newsize < oldsize)
   {
-    for (i = oldaddr + newsize; i < oldaddr + oldsize; i += PGSIZE)
+    // Calculate the start and end addresses of the memory to be deallocated
+    uint dealloc_start = oldaddr + newsize;
+    uint dealloc_end = oldaddr + oldsize;
+
+    // Deallocate the memory
+    if (deallocuvm(curproc->pgdir, dealloc_start, dealloc_end) == -1)
     {
-      if (wunmap(i) < 0)
-      {
-        return -1;
-      }
+      return -1; // Deallocating the memory failed
     }
+
+    // Update the wmap_region to reflect the new size of the mapping
+    wmap_region->length = newsize;
+
+    return oldaddr; // Return the address of the mapping
   }
-  // If the new size is larger than the old size, map new pages
+  // If the newsize is greater than the oldsize, try to grow the mapping
   else if (newsize > oldsize)
   {
-    for (i = oldaddr + oldsize; i < oldaddr + newsize; i += PGSIZE)
+    // Try to grow the mapping in-place
+    if (allocuvm(curproc->pgdir, oldaddr + oldsize, newsize) != -1)
     {
-      if (wmap(i, PGSIZE, flags, -1) < 0)
+      // Update the wmap_region to reflect the new size of the mapping
+      wmap_region->length = newsize;
+
+      return oldaddr; // Return the address of the mapping
+    }
+
+    // If in-place growing failed and MREMAP_MAYMOVE is set, try to move the mapping
+    if (flags & MREMAP_MAYMOVE)
+    {
+      // Allocate a new memory region
+      uint newaddr = wmap(oldaddr, newsize, wmap_region->flags, wmap_region->fd);
+      if (newaddr == -1)
       {
-        return -1;
+        return -1; // Allocating the new memory region failed
       }
+
+      // Copy the data from the old mapping to the new mapping
+      memmove((void *)newaddr, (void *)oldaddr, oldsize);
+
+      // Deallocate the old mapping
+      if (deallocuvm(curproc->pgdir, oldaddr, oldaddr + oldsize) == -1)
+      {
+        return -1; // Deallocating the old mapping failed
+      }
+
+      // Update the wmap_region to reflect the new location and size of the mapping
+      wmap_region->addr = newaddr;
+      wmap_region->length = newsize;
+
+      return newaddr; // Return the address of the new mapping
     }
   }
 
-  return 0;
+  // If the mapping was not modified, return -1
+  return -1;
 }
 
 // Count the number of loaded pages in the region [addr, addr+length)

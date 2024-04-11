@@ -27,6 +27,7 @@ int sleep(int);
 int uptime(void);
 uint wmap(uint addr, int length, int flags, int fd);
 int wunmap(uint addr);
+uint wremap(uint oldaddr, int oldsize, int newsize, int flags);
 int getwmapinfo(struct wmapinfo *wmi);
 int getpgdirinfo(struct pgdirinfo *pgdi);
 

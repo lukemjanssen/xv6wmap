@@ -182,12 +182,6 @@ int growproc(int n)
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
-// Create a new process copying p as the parent.
-// Sets up stack to return as if from system call.
-// Caller must set state of returned proc to RUNNABLE.
-//  Create a new process copying p as the parent.
-// Sets up stack to return as if from system call.
-// Caller must set state of returned proc to RUNNABLE.
 int fork(void)
 {
   int i, pid;
@@ -220,51 +214,70 @@ int fork(void)
   {
     np->wmap_regions[i] = curproc->wmap_regions[i];
 
-    // Do nothing for invalid wmap_regions
     if (!np->wmap_regions[i])
       continue;
 
     struct wmap_region *wmap_region = np->wmap_regions[i];
 
     pte_t *pt_entry;
-    uint addr = PGROUNDDOWN(wmap_region->addr);
-    uint end = PGROUNDUP(addr + wmap_region->length);
+    uint addr = wmap_region->addr;
+    uint end = PGROUNDUP(wmap_region->addr + wmap_region->length);
 
-    // Copy physical pages from parent to child
     for (; addr < end; addr += PGSIZE)
     {
       if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) == 0)
         continue;
 
-      uint ppa;
+      uint parent;
 
-      if (wmap_region->flags & MAP_SHARED)
-      {
-        // For shared mappings, simply increment the reference count of the wmap_region and
-        // map the same physical page to the child's page table
+      if (!(parent = PTE_ADDR(*pt_entry)))
+        continue;
 
-        ppa = PTE_ADDR(*pt_entry);
-        // Increment the reference count of the wmap_region
-        wmap_region->ref_count++;
-      }
-      else if (wmap_region->flags & MAP_PRIVATE)
+      char *mem = P2V(parent);
+
+      // If MMAP_PRIVATE copy the data to the child
+      if (wmap_region->flags & MAP_PRIVATE)
       {
-        // For private mappings, create a new physical page and copy the contents of the original page to it
-        char *mem;
         if ((mem = kalloc()) == 0)
-          panic("fork: out of memory");
-        memmove(mem, (char *)P2V(PTE_ADDR(*pt_entry)), PGSIZE);
-        ppa = V2P(mem);
-      }
-      else
-      {
-        panic("fork: unknown mapping flags");
+        {
+          cprintf("out of memory\n");
+          return -1;
+        }
+
+        memmove(mem, (char *)P2V(parent), PGSIZE);
       }
 
-      if (mappages(np->pgdir, (void *)addr, PGSIZE, ppa, PTE_FLAGS(*pt_entry)) < 0)
-        panic("fork: mappages failed");
+      if (mappages(np->pgdir, (char *)addr, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0)
+      {
+        cprintf("out of memory (2)\n");
+        kfree(mem);
+        return -1;
+      }
     }
   }
+
+  acquire(&ptable.lock);
+  // Increase reference counts for shared mapping across forked processes.
+  struct proc *p2;
+  for (p2 = ptable.proc; p2 < &ptable.proc[NPROC]; p2++)
+  {
+    if (p2 != curproc && p2->parent != curproc)
+      continue;
+
+    for (int i = 0; i < 16; i++)
+    {
+      if (p2->wmap_regions[i] == 0)
+        continue;
+
+      struct wmap_region *wmap_region = p2->wmap_regions[i];
+
+      if (wmap_region->flags & MAP_SHARED)
+        wmap_region->ref_count++;
+    }
+
+  }
+
+  release(&ptable.lock);
 
   for (i = 0; i < NOFILE; i++)
     if (curproc->ofile[i])
@@ -286,6 +299,35 @@ void exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
+  
+  cprintf("Process %d exited\n", curproc->pid);
+    for (int i = 0; i < 16; i++)
+  {
+    if (curproc->wmap_regions[i] == 0)
+      continue;
+
+    struct wmap_region *wmap_region = curproc->wmap_regions[i];
+    cprintf("Region %d: addr: 0x%x, length: %d, flags: %d, fd: %d, ref_count: %d\n", i, wmap_region->addr, wmap_region->length, wmap_region->flags, wmap_region->fd, wmap_region->ref_count);
+
+    uint addr = wmap_region->addr;
+    uint end = PGROUNDUP(wmap_region->addr + wmap_region->length);
+
+    for (; addr < end; addr += PGSIZE)
+    {
+      pte_t *pt_entry;
+      if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) == 0)
+        continue;
+
+      uint parent;
+
+      if (!(parent = PTE_ADDR(*pt_entry)))
+        continue;
+
+      char *mem = P2V(parent);
+
+      cprintf("  0x%x: %s\n", addr, mem);
+    }
+  }
 
   if (curproc == initproc)
     panic("init exiting");
@@ -310,7 +352,7 @@ void exit(void)
   // // Decrement the reference count for all shared memory regions
   for (int i = 0; i < 16; i++)
   {
-    if (curproc->wmap_regions[i])
+    if (curproc->wmap_regions[i]->flags & MAP_SHARED)
     {
       curproc->wmap_regions[i]->ref_count--;
       if (curproc->wmap_regions[i]->ref_count == 0)
@@ -318,6 +360,27 @@ void exit(void)
         // Unmap the shared memory region
         wunmap(curproc->wmap_regions[i]->addr);
       }
+    }
+  }
+
+  // Invalidate the pte so that wait() won't free shared memory regions
+  for (int i = 0; i < 16; i++)
+  {
+    if (curproc->wmap_regions[i] == 0)
+      continue;
+
+    struct wmap_region *wmap_region = curproc->wmap_regions[i];
+
+    uint addr = wmap_region->addr;
+    uint end = PGROUNDUP(wmap_region->addr + wmap_region->length);
+
+    for (; addr < end; addr += PGSIZE)
+    {
+      pte_t *pt_entry;
+      if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) == 0)
+        continue;
+
+      *pt_entry = 0;
     }
   }
 
