@@ -429,7 +429,6 @@ uint wmap(uint addr, int length, int flags, int fd)
   // Check if at least one of the MAP_ANONYMOUS, MAP_SHARED, or MAP_PRIVATE flags is set
   if (!(flags & MAP_ANONYMOUS) && !(flags & MAP_SHARED) && !(flags & MAP_PRIVATE))
   {
-    cprintf("wmap: invalid flags\n");
     return -1; // Invalid flags
   }
 
@@ -466,7 +465,6 @@ uint wmap(uint addr, int length, int flags, int fd)
       wmap_region = (struct wmap_region *)kalloc();
       if (wmap_region == 0)
       {
-        cprintf("wmap: failed to allocate memory for wmap_region\n");
         return -1;
       }
 
@@ -579,11 +577,9 @@ int is_mem_available(pde_t *pgdir, uint start, uint length)
     pte = walkpgdir(pgdir, (void *)a, 0);
     if (pte != 0 && (*pte & PTE_P))
     {
-      cprintf("is_mem_available: Memory at 0x%x is not available\n", a);
       return 0; // The memory is not available
     } 
   }
-  cprintf("is_mem_available: Memory from 0x%x to 0x%x is available\n", start, start + length);
   return 1; // The memory is available
 }
 
@@ -607,13 +603,9 @@ struct wmap_region *find_wmap_region(struct proc *curproc, uint addr)
 int can_grow_wmap_region(struct proc *curproc, struct wmap_region *region, int newsize)
 {
 
-  // print new size and old size
-  cprintf("can_grow_wmap_region: old size: %d\n", region->length);
-  cprintf("can_grow_wmap_region: new size: %d\n", newsize);
   // Check if the new size is larger than the current size
   if (newsize <= region->length)
   {
-    cprintf("can_grow_wmap_region: new size is not larger\n");
     return 0; // The new size is not larger
   }
 
@@ -621,23 +613,18 @@ int can_grow_wmap_region(struct proc *curproc, struct wmap_region *region, int n
   // Check if the new size is within the virtual address space
   if (region->addr + newsize >= 0x80000000)
   {
-    cprintf("can_grow_wmap_region: new size is too large\n");
     return 0; // The new size is too large
   }
   
   // Check if the new size is available in the virtual address space
   if (!is_mem_available(curproc->pgdir, region->addr + region->length, newsize - region->length))
   {
-    cprintf("can_grow_wmap_region: new size is not available\n");
     return 0; // The new size is not available
   }
 
-  //print out wmapinfo
-  cprintf("can_grow_wmap_region: wmapinfo\n");
   //check if regions overlap
   if (region_overlaps(curproc, region->addr+region->length, newsize))
   {
-    cprintf("can_grow_wmap_region: regions overlap\n");
     return 0; // The regions overlap
   }
 
@@ -653,13 +640,11 @@ void grow_wmap_region(struct proc *curproc, struct wmap_region *region, int news
     char *mem = kalloc();
     if (mem == 0)
     {
-      cprintf("grow_wmap_region: failed to allocate memory for the new size\n");
       return;
     }
     memset(mem, 0, PGSIZE);
     if (mappages(curproc->pgdir, (char *)a, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0)
     {
-      cprintf("grow_wmap_region: failed to map the new size\n");
       kfree(mem);
       return;
     }
@@ -667,7 +652,6 @@ void grow_wmap_region(struct proc *curproc, struct wmap_region *region, int news
 
   // Update the wmap_region
   region->length += newsize;
-  cprintf("grow_wmap_region: new size: %d\n", region->length);
 }
 
 // Check if a wmap_region can be shrunk in-place
@@ -700,7 +684,6 @@ void shrink_wmap_region(struct proc *curproc, struct wmap_region *region, int ne
 
   // Update the wmap_region
   // print region info
-  cprintf("shrink_wmap_region: old size: %d, new size: %d\n", region->length, newsize);
   region->length = newsize;
 }
 
@@ -726,13 +709,11 @@ void move_wmap_region(struct proc *curproc, struct wmap_region *region, uint new
     char *mem = kalloc();
     if (mem == 0)
     {
-      cprintf("move_wmap_region: failed to allocate memory for the new address\n");
       return;
     }
     memset(mem, 0, PGSIZE);
     if (mappages(curproc->pgdir, (char *)a, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0)
     {
-      cprintf("move_wmap_region: failed to map the new address\n");
       kfree(mem);
       return;
     }
@@ -783,7 +764,6 @@ uint wremap(uint oldaddr, int oldsize, int newsize, int flags)
 
   if (region == 0)
   {
-    cprintf("wremap: Mapping not found\n");
     return -1; // Mapping not found
   }
 
@@ -791,7 +771,6 @@ uint wremap(uint oldaddr, int oldsize, int newsize, int flags)
   {
     if (can_grow_wmap_region(curproc, region, newsize))
     {
-      cprintf("wremap: Growing region\n");
       grow_wmap_region(curproc, region, newsize - oldsize);
     }
     else if (flags == MREMAP_MAYMOVE)
@@ -799,15 +778,12 @@ uint wremap(uint oldaddr, int oldsize, int newsize, int flags)
       uint newaddr = find_free_wmap_space(curproc, newsize);
       if (newaddr == 0)
       {
-        cprintf("wremap: Not enough space to move the mapping\n");
         return -1; // Not enough space to move the mapping
       }
-      cprintf("wremap: Moving region\n");
       move_wmap_region(curproc, region, newaddr, newsize);
     }
     else
     {
-      cprintf("wremap: Not enough space to grow the mapping and moving is not allowed\n");
       return -1; // Not enough space to grow the mapping and moving is not allowed
     }
   }
@@ -815,19 +791,14 @@ uint wremap(uint oldaddr, int oldsize, int newsize, int flags)
   {
     if (can_shrink_wmap_region(curproc, region, oldsize - newsize))
     {
-      cprintf("wremap: Shrinking region\n");
-      cprintf("oldsize: %d, newsize: %d\n", oldsize, newsize);
       shrink_wmap_region(curproc, region, newsize);
     }
     else
     {
-      cprintf("wremap: Not enough space to shrink the mapping\n");
-      cprintf("oldsize: %d, newsize: %d\n", oldsize, newsize);
       return -1; // Not enough space to shrink the mapping
     }
   }
 
-  cprintf("wremap: Returning region address: 0x%x\n", region->addr);
   return region->addr;
 }
 // Count the number of loaded pages in the region [addr, addr+length)

@@ -205,8 +205,6 @@ int fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
-
-  // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
   // Copy over all mappings from parent to child
@@ -229,13 +227,11 @@ int fork(void)
         continue;
 
       uint parent;
-
       if (!(parent = PTE_ADDR(*pt_entry)))
         continue;
 
       char *mem = P2V(parent);
 
-      // If MMAP_PRIVATE copy the data to the child
       if (wmap_region->flags & MAP_PRIVATE)
       {
         if ((mem = kalloc()) == 0)
@@ -298,35 +294,6 @@ void exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
-
-  // cprintf("Process %d exited\n", curproc->pid);
-  // for (int i = 0; i < 16; i++)
-  // {
-  //   if (curproc->wmap_regions[i] == 0)
-  //     continue;
-
-  //   struct wmap_region *wmap_region = curproc->wmap_regions[i];
-  //   cprintf("Region %d: addr: 0x%x, length: %d, flags: %d, fd: %d, ref_count: %d\n", i, wmap_region->addr, wmap_region->length, wmap_region->flags, wmap_region->fd, wmap_region->ref_count);
-
-  //   uint addr = wmap_region->addr;
-  //   uint end = PGROUNDUP(wmap_region->addr + wmap_region->length);
-
-  //   for (; addr < end; addr += PGSIZE)
-  //   {
-  //     pte_t *pt_entry;
-  //     if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) == 0)
-  //       continue;
-
-  //     uint parent;
-
-  //     if (!(parent = PTE_ADDR(*pt_entry)))
-  //       continue;
-
-  //     char *mem = P2V(parent);
-
-  //     cprintf("  0x%x: %s\n", addr, mem);
-  //   }
-  // }
 
   if (curproc == initproc)
     panic("init exiting");
