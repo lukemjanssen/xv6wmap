@@ -296,7 +296,7 @@ void freevm(pde_t *pgdir)
 
   if (pgdir == 0)
     panic("freevm: no pgdir");
-  deallocuvm(pgdir, KERNBASE, 0);
+  deallocuvm(pgdir, KERNBASE, 0); // maybe change because bad
   for (i = 0; i < NPDENTRIES; i++)
   {
     if (pgdir[i] & PTE_P)
@@ -548,12 +548,15 @@ int wunmap(uint addr)
         if ((pte = walkpgdir(curproc->pgdir, (void *)a, 0)) != 0 && (*pte & PTE_P)) // Maybe PTE_P
         {
           char *v = P2V(PTE_ADDR(*pte));
-          kfree(v);
+          if (wmap_region->ref_count == 1) // Only free the physical memory if no other process is using it
+          {
+            kfree(v);
+          }
           *pte = 0;
         }
       }
 
-      // Decrement the reference count
+      // free wmap region if no other process is using it
       if (wmap_region->ref_count == 0)
       {
         // Free the physical memory and remove the wmap_region
@@ -567,87 +570,266 @@ int wunmap(uint addr)
   return -1; // No mapping found
 }
 
-// wremap system call
+// Check if a range of memory is available
+int is_mem_available(pde_t *pgdir, uint start, uint length)
+{
+  pte_t *pte;
+  for (uint a = start; a < start + length; a += PGSIZE)
+  {
+    pte = walkpgdir(pgdir, (void *)a, 0);
+    if (pte != 0 && (*pte & PTE_P))
+    {
+      cprintf("is_mem_available: Memory at 0x%x is not available\n", a);
+      return 0; // The memory is not available
+    } 
+  }
+  cprintf("is_mem_available: Memory from 0x%x to 0x%x is available\n", start, start + length);
+  return 1; // The memory is available
+}
+
+// Find the wmap_region for a given address
+struct wmap_region *find_wmap_region(struct proc *curproc, uint addr)
+{
+  struct wmap_region *wmap_region;
+  int i;
+  for (i = 0; i < 16; i++)
+  {
+    wmap_region = curproc->wmap_regions[i];
+    if (wmap_region != 0 && wmap_region->addr == addr)
+    {
+      return wmap_region;
+    }
+  }
+  return 0;
+}
+
+// Check if a wmap_region can be grown in-place
+int can_grow_wmap_region(struct proc *curproc, struct wmap_region *region, int newsize)
+{
+
+  // print new size and old size
+  cprintf("can_grow_wmap_region: old size: %d\n", region->length);
+  cprintf("can_grow_wmap_region: new size: %d\n", newsize);
+  // Check if the new size is larger than the current size
+  if (newsize <= region->length)
+  {
+    cprintf("can_grow_wmap_region: new size is not larger\n");
+    return 0; // The new size is not larger
+  }
+
+
+  // Check if the new size is within the virtual address space
+  if (region->addr + newsize >= 0x80000000)
+  {
+    cprintf("can_grow_wmap_region: new size is too large\n");
+    return 0; // The new size is too large
+  }
+  
+  // Check if the new size is available in the virtual address space
+  if (!is_mem_available(curproc->pgdir, region->addr + region->length, newsize - region->length))
+  {
+    cprintf("can_grow_wmap_region: new size is not available\n");
+    return 0; // The new size is not available
+  }
+
+  //print out wmapinfo
+  cprintf("can_grow_wmap_region: wmapinfo\n");
+  //check if regions overlap
+  if (region_overlaps(curproc, region->addr+region->length, newsize))
+  {
+    cprintf("can_grow_wmap_region: regions overlap\n");
+    return 0; // The regions overlap
+  }
+
+  return 1; // The wmap_region can be grown
+}
+
+// Grow a wmap_region in-place
+void grow_wmap_region(struct proc *curproc, struct wmap_region *region, int newsize)
+{
+  // Allocate physical memory for the new size
+  for (uint a = region->addr + region->length; a < region->addr + region->length + newsize; a += PGSIZE)
+  {
+    char *mem = kalloc();
+    if (mem == 0)
+    {
+      cprintf("grow_wmap_region: failed to allocate memory for the new size\n");
+      return;
+    }
+    memset(mem, 0, PGSIZE);
+    if (mappages(curproc->pgdir, (char *)a, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0)
+    {
+      cprintf("grow_wmap_region: failed to map the new size\n");
+      kfree(mem);
+      return;
+    }
+  }
+
+  // Update the wmap_region
+  region->length += newsize;
+  cprintf("grow_wmap_region: new size: %d\n", region->length);
+}
+
+// Check if a wmap_region can be shrunk in-place
+int can_shrink_wmap_region(struct proc *curproc, struct wmap_region *region, int size_to_shrink)
+{
+  // Check if the new size is smaller than the current size
+  int newsize = region->length - size_to_shrink;
+  if (newsize >= 0)
+  {
+    return newsize; // The wmap_region can be shrunk, return the new size
+  }
+
+  return -1; // The wmap_region cannot be shrunk, return -1 to indicate an error
+}
+
+// Shrink a wmap_region in-place
+void shrink_wmap_region(struct proc *curproc, struct wmap_region *region, int newsize)
+{
+  // Free the physical memory
+  for (uint a = region->addr + newsize; a < region->addr + region->length; a += PGSIZE)
+  {
+    pte_t *pte = walkpgdir(curproc->pgdir, (void *)a, 0);
+    if (pte && (*pte & PTE_P))
+    {
+      char *v = P2V(PTE_ADDR(*pte));
+      kfree(v);
+      *pte = 0;
+    }
+  }
+
+  // Update the wmap_region
+  // print region info
+  cprintf("shrink_wmap_region: old size: %d, new size: %d\n", region->length, newsize);
+  region->length = newsize;
+}
+
+// Find a free space in the virtual address space that can accommodate a new wmap_region
+uint find_free_wmap_space(struct proc *curproc, int length)
+{
+  for (uint addr = 0x60000000; addr < 0x80000000; addr += PGSIZE)
+  {
+    if (is_mem_available(curproc->pgdir, addr, length) && !region_overlaps(curproc, addr, length))
+    {
+      return addr;
+    }
+  }
+  return 0;
+}
+
+// Move a wmap_region to a new address
+void move_wmap_region(struct proc *curproc, struct wmap_region *region, uint newaddr, int newsize)
+{
+  // Allocate physical memory for the new address
+  for (uint a = newaddr; a < newaddr + newsize; a += PGSIZE)
+  {
+    char *mem = kalloc();
+    if (mem == 0)
+    {
+      cprintf("move_wmap_region: failed to allocate memory for the new address\n");
+      return;
+    }
+    memset(mem, 0, PGSIZE);
+    if (mappages(curproc->pgdir, (char *)a, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0)
+    {
+      cprintf("move_wmap_region: failed to map the new address\n");
+      kfree(mem);
+      return;
+    }
+  }
+
+  // Copy the memory data to the new address
+  for (uint a = region->addr; a < region->addr + region->length; a += PGSIZE)
+  {
+    pte_t *pte = walkpgdir(curproc->pgdir, (void *)a, 0);
+    if (pte && (*pte & PTE_P))
+    {
+      char *v = P2V(PTE_ADDR(*pte));
+      memmove((char *)(newaddr + (a - region->addr)), v, PGSIZE);
+    }
+  }
+
+  // Free the physical memory and remove the old wmap_region
+  for (uint a = region->addr; a < region->addr + region->length; a += PGSIZE)
+  {
+    pte_t *pte = walkpgdir(curproc->pgdir, (void *)a, 0);
+    if (pte && (*pte & PTE_P))
+    {
+      char *v = P2V(PTE_ADDR(*pte));
+      kfree(v);
+      *pte = 0;
+    }
+  }
+
+  // Update the wmap_region
+  region->addr = newaddr;
+  region->length = newsize;
+}
+
+/**
+ * wremap is used to grow or shrink an existing mapping. The existing mapping can be modified in-place, or moved to a new address depending on the flags: If flags is 0, then wremap tries to grow/shrink the mapping in-place, and fails if there's not enough space. If MREMAP_MAYMOVE flag is set, then wremap should also try allocating the requested newsize by moving the mapping. Note that you're allowed to move the mapping only if you can't grow it in-place.
+If wremap fails, the existing mapping should be left intact. In other words, you should only remove the old mapping after the new one succeeds.
+ *
+ * @param oldaddr
+ * @param oldsize
+ * @param newsize
+ * @param flags
+ * @return uint
+*/
 uint wremap(uint oldaddr, int oldsize, int newsize, int flags)
 {
   struct proc *curproc = myproc();
+  struct wmap_region *region = find_wmap_region(curproc, oldaddr);
 
-  // Find the wmap_region that matches the oldaddr and oldsize
-  struct wmap_region *wmap_region = 0;
-  for (int i = 0; i < 16; i++)
+  if (region == 0)
   {
-    if (curproc->wmap_regions[i] && curproc->wmap_regions[i]->addr == oldaddr && curproc->wmap_regions[i]->length == oldsize)
-    {
-      wmap_region = curproc->wmap_regions[i];
-      break;
-    }
+    cprintf("wremap: Mapping not found\n");
+    return -1; // Mapping not found
   }
 
-  // If no matching wmap_region was found, return -1
-  if (!wmap_region)
-    return -1;
-
-  // If the newsize is less than the oldsize, shrink the mapping
-  if (newsize < oldsize)
+  if (newsize > oldsize)
   {
-    // Calculate the start and end addresses of the memory to be deallocated
-    uint dealloc_start = oldaddr + newsize;
-    uint dealloc_end = oldaddr + oldsize;
-
-    // Deallocate the memory
-    if (deallocuvm(curproc->pgdir, dealloc_start, dealloc_end) == -1)
+    if (can_grow_wmap_region(curproc, region, newsize))
     {
-      return -1; // Deallocating the memory failed
+      cprintf("wremap: Growing region\n");
+      grow_wmap_region(curproc, region, newsize - oldsize);
     }
-
-    // Update the wmap_region to reflect the new size of the mapping
-    wmap_region->length = newsize;
-
-    return oldaddr; // Return the address of the mapping
-  }
-  // If the newsize is greater than the oldsize, try to grow the mapping
-  else if (newsize > oldsize)
-  {
-    // Try to grow the mapping in-place
-    if (allocuvm(curproc->pgdir, oldaddr + oldsize, newsize) != -1)
+    else if (flags == MREMAP_MAYMOVE)
     {
-      // Update the wmap_region to reflect the new size of the mapping
-      wmap_region->length = newsize;
-
-      return oldaddr; // Return the address of the mapping
-    }
-
-    // If in-place growing failed and MREMAP_MAYMOVE is set, try to move the mapping
-    if (flags & MREMAP_MAYMOVE)
-    {
-      // Allocate a new memory region
-      uint newaddr = wmap(oldaddr, newsize, wmap_region->flags, wmap_region->fd);
-      if (newaddr == -1)
+      uint newaddr = find_free_wmap_space(curproc, newsize);
+      if (newaddr == 0)
       {
-        return -1; // Allocating the new memory region failed
+        cprintf("wremap: Not enough space to move the mapping\n");
+        return -1; // Not enough space to move the mapping
       }
-
-      // Copy the data from the old mapping to the new mapping
-      memmove((void *)newaddr, (void *)oldaddr, oldsize);
-
-      // Deallocate the old mapping
-      if (deallocuvm(curproc->pgdir, oldaddr, oldaddr + oldsize) == -1)
-      {
-        return -1; // Deallocating the old mapping failed
-      }
-
-      // Update the wmap_region to reflect the new location and size of the mapping
-      wmap_region->addr = newaddr;
-      wmap_region->length = newsize;
-
-      return newaddr; // Return the address of the new mapping
+      cprintf("wremap: Moving region\n");
+      move_wmap_region(curproc, region, newaddr, newsize);
+    }
+    else
+    {
+      cprintf("wremap: Not enough space to grow the mapping and moving is not allowed\n");
+      return -1; // Not enough space to grow the mapping and moving is not allowed
+    }
+  }
+  else if (newsize < oldsize)
+  {
+    if (can_shrink_wmap_region(curproc, region, oldsize - newsize))
+    {
+      cprintf("wremap: Shrinking region\n");
+      cprintf("oldsize: %d, newsize: %d\n", oldsize, newsize);
+      shrink_wmap_region(curproc, region, newsize);
+    }
+    else
+    {
+      cprintf("wremap: Not enough space to shrink the mapping\n");
+      cprintf("oldsize: %d, newsize: %d\n", oldsize, newsize);
+      return -1; // Not enough space to shrink the mapping
     }
   }
 
-  // If the mapping was not modified, return -1
-  return -1;
+  cprintf("wremap: Returning region address: 0x%x\n", region->addr);
+  return region->addr;
 }
-
 // Count the number of loaded pages in the region [addr, addr+length)
 int count_pages(uint addr, int length)
 {

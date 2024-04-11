@@ -274,7 +274,6 @@ int fork(void)
       if (wmap_region->flags & MAP_SHARED)
         wmap_region->ref_count++;
     }
-
   }
 
   release(&ptable.lock);
@@ -299,35 +298,35 @@ void exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
-  
-  cprintf("Process %d exited\n", curproc->pid);
-    for (int i = 0; i < 16; i++)
-  {
-    if (curproc->wmap_regions[i] == 0)
-      continue;
 
-    struct wmap_region *wmap_region = curproc->wmap_regions[i];
-    cprintf("Region %d: addr: 0x%x, length: %d, flags: %d, fd: %d, ref_count: %d\n", i, wmap_region->addr, wmap_region->length, wmap_region->flags, wmap_region->fd, wmap_region->ref_count);
+  // cprintf("Process %d exited\n", curproc->pid);
+  // for (int i = 0; i < 16; i++)
+  // {
+  //   if (curproc->wmap_regions[i] == 0)
+  //     continue;
 
-    uint addr = wmap_region->addr;
-    uint end = PGROUNDUP(wmap_region->addr + wmap_region->length);
+  //   struct wmap_region *wmap_region = curproc->wmap_regions[i];
+  //   cprintf("Region %d: addr: 0x%x, length: %d, flags: %d, fd: %d, ref_count: %d\n", i, wmap_region->addr, wmap_region->length, wmap_region->flags, wmap_region->fd, wmap_region->ref_count);
 
-    for (; addr < end; addr += PGSIZE)
-    {
-      pte_t *pt_entry;
-      if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) == 0)
-        continue;
+  //   uint addr = wmap_region->addr;
+  //   uint end = PGROUNDUP(wmap_region->addr + wmap_region->length);
 
-      uint parent;
+  //   for (; addr < end; addr += PGSIZE)
+  //   {
+  //     pte_t *pt_entry;
+  //     if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) == 0)
+  //       continue;
 
-      if (!(parent = PTE_ADDR(*pt_entry)))
-        continue;
+  //     uint parent;
 
-      char *mem = P2V(parent);
+  //     if (!(parent = PTE_ADDR(*pt_entry)))
+  //       continue;
 
-      cprintf("  0x%x: %s\n", addr, mem);
-    }
-  }
+  //     char *mem = P2V(parent);
+
+  //     cprintf("  0x%x: %s\n", addr, mem);
+  //   }
+  // }
 
   if (curproc == initproc)
     panic("init exiting");
@@ -349,21 +348,7 @@ void exit(void)
 
   acquire(&ptable.lock);
 
-  // // Decrement the reference count for all shared memory regions
-  for (int i = 0; i < 16; i++)
-  {
-    if (curproc->wmap_regions[i]->flags & MAP_SHARED)
-    {
-      curproc->wmap_regions[i]->ref_count--;
-      if (curproc->wmap_regions[i]->ref_count == 0)
-      {
-        // Unmap the shared memory region
-        wunmap(curproc->wmap_regions[i]->addr);
-      }
-    }
-  }
-
-  // Invalidate the pte so that wait() won't free shared memory regions
+  // Invalidate pte entries and decrement ref counts for shared mappings
   for (int i = 0; i < 16; i++)
   {
     if (curproc->wmap_regions[i] == 0)
@@ -380,10 +365,21 @@ void exit(void)
       if ((pt_entry = walkpgdir(curproc->pgdir, (char *)addr, 0)) == 0)
         continue;
 
-      *pt_entry = 0;
+      *pt_entry &= ~PTE_P;
+    }
+
+    if (wmap_region->flags & MAP_SHARED)
+    {
+      wmap_region->ref_count--;
+      if (wmap_region->ref_count == 0)
+      {
+        // Unmap the shared memory region
+        wunmap(wmap_region->addr);
+      }
     }
   }
 
+  // cprintf("Process %d exited\n", curproc->pid);
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
